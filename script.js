@@ -1144,6 +1144,9 @@ async function shareAnalysis(analysisText, videoUrl, fileName) {
       console.error('Video upload error:', err);
       showToast('Video upload failed; sharing without video.');
     }
+  } else if (finalVideoUrl && finalVideoUrl.startsWith('/shared/')) {
+    // Convert relative URL to absolute if it's a relative /shared/ path
+    finalVideoUrl = new URL(finalVideoUrl, window.location.origin).href;
   }
   
   // Create share link on server
@@ -1277,7 +1280,12 @@ async function addHistoryItem(analysisText) {
       if (r.ok) {
         const j = await r.json();
         if (j?.url) {
+          // Server now returns absolute URL, but handle both cases
           url = j.url;
+          // If it's still relative, convert to absolute
+          if (url.startsWith('/')) {
+            url = new URL(url, window.location.origin).href;
+          }
           console.log('Video uploaded to shared directory:', url);
         }
       } else {
@@ -1461,9 +1469,10 @@ historyList?.addEventListener('click', async (e) => {
       player.classList.add('hidden');
       fileInfo.classList.add('hidden');
     } else if (item.videoUrl.startsWith('/shared/')) {
-      // It's a shared local file URL
+      // It's a shared local file URL - convert to absolute URL
       urlInput.value = '';
-      player.src = item.videoUrl;
+      const absoluteVideoUrl = new URL(item.videoUrl, window.location.origin).href;
+      player.src = absoluteVideoUrl;
       player.classList.remove('hidden');
       ytWrap.classList.add('hidden');
       fileInfo.textContent = `Loaded from history: ${item.fileName || 'Saved video'}`;
@@ -1472,9 +1481,14 @@ historyList?.addEventListener('click', async (e) => {
       currentVideoFile = null;
       currentVideoFileName = null;
     } else {
-      // Unknown URL format, try to load anyway
+      // Unknown URL format - check if it needs conversion
       urlInput.value = item.videoUrl;
-      player.src = item.videoUrl;
+      let videoUrlToLoad = item.videoUrl;
+      // If it's a relative URL, convert to absolute
+      if (videoUrlToLoad.startsWith('/')) {
+        videoUrlToLoad = new URL(videoUrlToLoad, window.location.origin).href;
+      }
+      player.src = videoUrlToLoad;
       player.classList.remove('hidden');
       ytWrap.classList.add('hidden');
       fileInfo.textContent = `Loaded from history: ${item.fileName || 'Saved video'}`;

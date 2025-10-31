@@ -664,7 +664,22 @@ app.post('/share/upload', (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: 'Missing file' });
     }
-    const publicUrl = `/shared/${encodeURIComponent(req.file.filename)}`;
+    // Construct absolute URL for better VPS compatibility
+    let host = req.get('host') || req.headers.host;
+    if (!host) {
+      const origin = req.headers.origin || req.headers.referer;
+      if (origin) {
+        try {
+          const url = new URL(origin);
+          host = url.host;
+        } catch {}
+      }
+    }
+    if (!host) {
+      host = `localhost:${PORT}`;
+    }
+    const protocol = (req.secure || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
+    const publicUrl = `${protocol}://${host}/shared/${encodeURIComponent(req.file.filename)}`;
     return res.json({ url: publicUrl });
   });
 });
