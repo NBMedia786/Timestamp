@@ -7,7 +7,7 @@
 2. **Shared Links**: Already updated to automatically detect your VPS domain/IP from the request headers. Will work with:
    - `http://your-domain.com`
    - `https://your-domain.com`
-   - `http://your-ip:3000`
+   - `http://your-ip:3001`
    - Behind reverse proxies (nginx, Apache) with proper headers
 
 3. **Video Storage**: The `shared/` directory for uploaded videos will persist. Make sure it exists.
