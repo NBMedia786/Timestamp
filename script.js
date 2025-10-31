@@ -39,6 +39,7 @@ const newAnalysisBtnSide = document.getElementById('newAnalysisBtnSide');
 
 // History panel elements
 const historyList = document.getElementById('historyList');
+const historySearch = document.getElementById('historySearch');
 const historyStorageBar = document.getElementById('historyStorageBar');
 const historyStorageText = document.getElementById('historyStorageText');
 const TOTAL_STORAGE_BYTES = 20 * 1024 * 1024 * 1024; // 20 GB
@@ -364,7 +365,8 @@ function parseServerLine(line) {
   if (l.includes('downloading youtube video') || l.includes('downloading video')) { 
     setUpload(12, 'Downloading video…');
     updateStep('Downloading video from YouTube...');
-    if (!currentCheckpoint) activateCheckpoint('upload');
+    activateCheckpoint('upload'); // Always activate upload checkpoint for YouTube downloads
+    updateCheckpointProgress(20); // Start of upload checkpoint
   }
   if (l.includes('download complete')) { 
     setUpload(15, 'Download complete.');
@@ -374,12 +376,14 @@ function parseServerLine(line) {
   if (l.includes('uploading video to gemini') || l.includes('uploading video') || l.includes('submitting')) { 
     setUpload(20, 'Uploading to Gemini…');
     updateStep('Uploading video to Gemini...');
-    if (!currentCheckpoint) activateCheckpoint('upload');
+    activateCheckpoint('upload'); // Always activate upload checkpoint (for both local files and YouTube)
+    updateCheckpointProgress(40); // Mid-upload progress
   }
   if (l.includes('upload complete')) {
     setUpload(30, 'Upload complete. Processing...');
     updateStep('Video uploaded successfully', true);
     activateCheckpoint('process');
+    updateCheckpointProgress(40); // Transition from upload to process (2nd checkpoint out of 5 = 40%)
     setTimeout(() => updateStep('Processing video file...'), 500);
   }
   if (l.includes('waiting for gemini') || l.includes('processing the file') || l.includes('waiting for')) { 
@@ -392,6 +396,7 @@ function parseServerLine(line) {
     setUpload(65, 'ACTIVE. Analyzing…');
     updateStep('Video processing complete', true);
     activateCheckpoint('analyze');
+    updateCheckpointProgress(60); // Transition to analyze checkpoint (3rd out of 5 = 60%)
     setTimeout(() => updateStep('Starting AI analysis...'), 500);
   }
   if (l.includes('starting analysis') || l.includes('gemini 2.5 pro')) { 
@@ -536,7 +541,7 @@ function toYouTubeEmbed(url) {
 let currentVideoFile = null;
 let currentVideoFileName = null;
 
-// Function to handle form submission
+// Function to handle form submission with automatic retry for network errors
 async function handleSubmit(e) {
   if (e) e.preventDefault();
   
@@ -555,18 +560,96 @@ async function handleSubmit(e) {
   resultsPre.textContent = '';
   setUpload(10, 'Preparing…'); // Start progress
   shareBtn.disabled = true;
+  
+  // Retry configuration
+  const MAX_RETRIES = 3;
+  let retryCount = 0;
+  
+  try {
+    // Main retry loop for network errors
+    while (retryCount < MAX_RETRIES) {
+      try {
+        await performAnalysis(prompt, url, file);
+        // Success - break out of retry loop
+        break;
+      } catch (error) {
+        const errorMessage = error.message || String(error);
+        const isNetworkError = errorMessage.includes('Network error') || 
+                              errorMessage.includes('Failed to fetch') ||
+                              errorMessage.includes('Connection timeout') ||
+                              errorMessage.includes('Connection failed') ||
+                              errorMessage.includes('AbortError') ||
+                              error.name === 'AbortError';
+        
+        // Only retry network errors, not server/validation errors
+        if (isNetworkError && retryCount < MAX_RETRIES - 1) {
+          retryCount++;
+          const remainingRetries = MAX_RETRIES - retryCount;
+          
+          console.log(`Network error occurred. Retrying... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          updateStep(`Network error. Retrying in ${Math.min(3 * retryCount, 10)} seconds... (${remainingRetries} attempts remaining)`, false);
+          addConsoleLog(`[Notice] Network error detected. Auto-retrying... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          
+          // Wait before retry (exponential backoff: 3s, 6s, 9s)
+          const delay = Math.min(3000 * retryCount, 10000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          // Reset progress for retry
+          setUpload(10, 'Retrying…');
+          continue;
+        } else {
+          // Either not a network error, or max retries reached
+          throw error;
+        }
+      }
+    }
+    
+    // Hide modal after a delay on success
+    setTimeout(() => {
+      if (progressStatus && progressStatus.textContent.includes('Complete')) {
+        setUpload(0, 'Idle'); // Hide modal
+      }
+    }, 3000);
+    
+  } catch (finalError) {
+    // This catches errors after all retries are exhausted or non-network errors
+    setUpload(0, 'Idle');
+    const finalErrorMsg = finalError.message || 'Unknown error occurred';
+    
+    // Show final error message
+    if (finalErrorMsg.includes('Network error') || finalErrorMsg.includes('Failed to fetch') || 
+        finalErrorMsg.includes('Connection timeout') || finalErrorMsg.includes('Connection failed')) {
+      addConsoleLog(`[Error] Network error after ${MAX_RETRIES} attempts. Please check your connection.`);
+      showToast(`Connection failed after ${MAX_RETRIES} attempts. Please check your internet connection and server status.`);
+    } else if (finalErrorMsg.includes('401') || finalErrorMsg.includes('403')) {
+      addConsoleLog(`[Error] ${finalErrorMsg}`);
+      showToast('Authentication error. Check your GEMINI_API_KEY in .env file');
+    } else if (finalErrorMsg.includes('timeout') && !finalErrorMsg.includes('Connection')) {
+      addConsoleLog(`[Error] ${finalErrorMsg}`);
+      showToast('Analysis timed out. The server may be processing a large file. Please try again.');
+    } else {
+      addConsoleLog(`[Error] ${finalErrorMsg}`);
+      showToast(finalErrorMsg);
+    }
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
+// Separate function to perform the actual analysis
+async function performAnalysis(prompt, url, file) {
 
   if (file && url) { 
     const msg = 'Provide either a file OR a YouTube URL, not both.';
     showToast(msg); 
     setUpload(0, 'Idle'); 
-    return; 
+    throw new Error(msg); // Throw instead of return for retry logic
   }
   if (!file && !url) { 
     const msg = 'Please select a video or enter a YouTube URL.';
     showToast(msg); 
     setUpload(0, 'Idle'); 
-    return; 
+    throw new Error(msg); // Throw instead of return for retry logic
   }
   
   // Log file/URL info but don't spam console with it immediately
@@ -595,6 +678,10 @@ async function handleSubmit(e) {
 
   let softTimer = null;
   let softPct = 78; // This is the "streaming" start percentage
+  let activityTimer = null; // Declare early to avoid "not defined" errors
+  let hasReceivedData = false;
+  let lastActivityTime = Date.now();
+  const ACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes timeout
 
   try {
     submitBtn.disabled = true;
@@ -612,19 +699,44 @@ async function handleSubmit(e) {
     }
     console.log('FormData entries:', Array.from(fd.entries()).map(([k, v]) => [k, v instanceof File ? v.name : v]));
 
-    console.log('Fetching /upload...');
-    updateStep('Connecting to server...');
+    console.log('Fetching /upload...', { hasFile: !!file, hasUrl: !!url });
+    updateStep(url ? 'Connecting to server (YouTube)...' : 'Connecting to server (local file)...');
     let res;
     try {
-      res = await fetch('/upload', { method: 'POST', body: fd });
-      console.log('Fetch response:', res.status, res.statusText);
+      // Add timeout for fetch request (30 seconds for initial connection)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 30000); // 30 second timeout
+      
+      res = await fetch('/upload', { 
+        method: 'POST', 
+        body: fd,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      console.log('Fetch response:', res.status, res.statusText, {
+        contentType: res.headers.get('content-type'),
+        hasBody: !!res.body,
+        bodyUsed: res.bodyUsed
+      });
+      
       updateStep('Connected. Starting analysis...', true);
       setTimeout(() => updateStep('Initializing...'), 300);
     } catch (fetchError) {
       console.error('Fetch error:', fetchError);
-      updateStep('Connection failed', true, true);
-      addConsoleLog(`[Error] Network error: ${fetchError.message}`);
-      showToast(`Failed to connect to server: ${fetchError.message}`);
+      
+      // Handle abort/timeout specifically
+      if (fetchError.name === 'AbortError') {
+        updateStep('Connection timeout', true, true);
+        addConsoleLog(`[Error] Connection timeout: Server did not respond within 30 seconds`);
+        showToast('Connection timeout. The server may be overloaded or unreachable. Please try again.');
+      } else {
+        updateStep('Connection failed', true, true);
+        addConsoleLog(`[Error] Network error: ${fetchError.message}`);
+        showToast(`Failed to connect to server: ${fetchError.message}`);
+      }
       throw new Error(`Network error: ${fetchError.message}`);
     }
     
@@ -660,10 +772,10 @@ async function handleSubmit(e) {
     console.log('Response body available, starting stream read...');
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let hasReceivedData = false;
-    let lastActivityTime = Date.now();
-    const ACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes timeout (Gemini can take a while)
-    let activityTimer = null;
+    
+    // Reset activity tracking for this new stream
+    hasReceivedData = false;
+    lastActivityTime = Date.now();
 
     // Set up activity monitoring - warn if no activity for a while
     activityTimer = setInterval(() => {
@@ -716,8 +828,9 @@ async function handleSubmit(e) {
       lastActivityTime = Date.now();
       hasReceivedData = true;
       
+      let chunk = null;
       try {
-        const chunk = decoder.decode(value, { stream: true });
+        chunk = decoder.decode(value, { stream: true });
         if (chunk) {
           resultsPre.textContent += chunk;
           resultsPre.scrollTop = resultsPre.scrollHeight;
@@ -730,12 +843,14 @@ async function handleSubmit(e) {
 
       // Check for server-sent progress lines
       // Process lines individually as they come from the server
-      const lines = chunk.split(/\r?\n/);
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        // This will add console logs and update progress step by step
-        // Each line from the server is logged as it arrives
-        parseServerLine(line);
+      if (chunk) {
+        const lines = chunk.split(/\r?\n/);
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          // This will add console logs and update progress step by step
+          // Each line from the server is logged as it arrives
+          parseServerLine(line);
+        }
       }
       
       // Update streaming content preview during analysis
@@ -865,30 +980,27 @@ async function handleSubmit(e) {
   } catch (err) {
     clearInterval(softTimer);
     if (activityTimer) clearInterval(activityTimer);
-    setUpload(0, 'Idle'); // Reset on error
+    
+    // Don't reset UI if this is a network error (will be retried by outer handler)
     const errorMsg = err.message || 'Unknown error occurred';
+    const isNetworkError = errorMsg.includes('Network error') || 
+                          errorMsg.includes('Failed to fetch') ||
+                          errorMsg.includes('Connection timeout') ||
+                          errorMsg.includes('Connection failed') ||
+                          err.name === 'AbortError';
+    
+    // Only reset UI for non-network errors (validation, server errors, etc.)
+    if (!isNetworkError) {
+      setUpload(0, 'Idle');
+    }
+    
     addConsoleLog(`[Error] ${errorMsg}`);
     console.error('Analysis error:', err);
     
-    // Show detailed error in toast
-    let displayMsg = errorMsg;
-    if (errorMsg.includes('Failed to fetch') || errorMsg.includes('Network error')) {
-      const serverUrl = window.location.origin || 'the server';
-      displayMsg = `Cannot connect to server. Please check that the server is running at ${serverUrl}`;
-    } else if (errorMsg.includes('401') || errorMsg.includes('403')) {
-      displayMsg = 'Authentication error. Check your GEMINI_API_KEY in .env file';
-    } else if (errorMsg.includes('timeout')) {
-      displayMsg = 'Analysis timed out. The server may be processing a large file. Please try again.';
-    }
-    showToast(displayMsg);
+    // Re-throw the error so retry logic can handle it
+    throw err;
   } finally {
-    submitBtn.disabled = false;
-    // Hide modal after a delay on success
-    setTimeout(() => {
-        if (progressStatus && progressStatus.textContent.includes('Complete')) {
-            setUpload(0, 'Idle'); // Hide modal
-        }
-    }, 3000); // Increased to 3 seconds to let users see the completion message
+    // Note: submitBtn will be re-enabled in outer handleSubmit after retries are exhausted
   }
 }
 
@@ -1002,30 +1114,45 @@ function parseGeminiOutput(text) {
                 // Check for category header (lines without brackets or timestamps)
                 const categoryMatch = trimmedLine.match(/^\s*(?:\*{1,3}|#{1,3}|\d+\.?)\s*([A-Z0-9\s/&-]+?)\s*(?:\*{1,3}|:)?\s*$/i);
                 if (categoryMatch && !trimmedLine.includes('[') && !trimmedLine.includes('-')) { 
-                    currentCategory = clean(categoryMatch[1]) || currentCategory; 
+                    const newCategory = clean(categoryMatch[1]);
+                    if (newCategory) {
+                        currentCategory = newCategory;
+                    }
                     continue; 
                 }
                 // Match timestamp format: [MM:SS] or [MM:SS - MM:SS] - Description
-                const tsMatch = trimmedLine.match(/\[([^\]]+)\]\s*-\s*(.+)/);
+                // Also handle formats like: [00:15] Description (without dash)
+                const tsMatch = trimmedLine.match(/\[([^\]]+)\]\s*-?\s*(.+)?/);
                 if (tsMatch) {
-                    let description = tsMatch[2].trim();
-                    let finalCategory = currentCategory || 'General';
+                    const timePart = clean(tsMatch[1]);
+                    let description = (tsMatch[2] || '').trim();
+                    
+                    // If no description but we have a time, try to extract from next line or use default
+                    if (!description || description.length === 0) {
+                        description = 'Timestamp marker';
+                    }
+                    
+                    let finalCategory = clean(currentCategory) || 'General';
+                    
                     // If description starts with category name, extract it
-                    const descParts = description.split(/\s*-\s*/);
-                    if (descParts.length > 1) {
-                        const firstPart = descParts[0].trim();
-                        if (firstPart.toUpperCase() === finalCategory.toUpperCase()) {
-                            description = descParts.slice(1).join(' - ').trim();
-                        } else if (categoryClass(firstPart)) {
-                            // First part might be a category
-                            finalCategory = firstPart;
-                            description = descParts.slice(1).join(' - ').trim();
+                    if (description.includes('-')) {
+                        const descParts = description.split(/\s*-\s*/);
+                        if (descParts.length > 1) {
+                            const firstPart = descParts[0].trim();
+                            if (firstPart.toUpperCase() === finalCategory.toUpperCase()) {
+                                description = descParts.slice(1).join(' - ').trim();
+                            } else if (categoryClass(firstPart)) {
+                                // First part might be a category
+                                finalCategory = firstPart;
+                                description = descParts.slice(1).join(' - ').trim();
+                            }
                         }
                     }
+                    
                     timestamps.push({
-                        time: clean(tsMatch[1]),
-                        category: finalCategory,
-                        description: clean(description)
+                        time: timePart,
+                        category: finalCategory || 'General',
+                        description: clean(description) || 'No description'
                     });
                 }
                 break;
@@ -1044,24 +1171,47 @@ function parseGeminiOutput(text) {
 
 
 function buildStructuredOutput(text) {
-  const { metadata, timestamps, summary } = parseGeminiOutput(text);
+  if (!text || !text.trim()) {
+    // Clear everything if no text
+    if (timestampCardsContainer) timestampCardsContainer.innerHTML = '';
+    if (summaryEl) summaryEl.innerHTML = '—';
+    if (metaTableWrap) metaTableWrap.classList.add('hidden');
+    return;
+  }
 
-  summaryEl.innerHTML = parseAndPill(summary || '—');
+  const { metadata, timestamps, summary } = parseGeminiOutput(text);
+  
+  console.log('buildStructuredOutput:', {
+    textLength: text.length,
+    timestampsCount: timestamps.length,
+    timestamps: timestamps.slice(0, 3), // Show first 3 for debugging
+    hasMetadata: Object.keys(metadata).length > 0,
+    hasSummary: !!summary,
+    textPreview: text.substring(0, 500) // First 500 chars for debugging
+  });
+
+  if (summaryEl) {
+    summaryEl.innerHTML = parseAndPill(summary || '—');
+  }
 
   if (Object.keys(metadata).length > 0) {
-    metaTableWrap.classList.remove('hidden');
-    let metaHtml = '';
-    for (const [key, value] of Object.entries(metadata)) {
-      metaHtml += `<tr><td><span class="pill-key">${escapeHTML(key)}</span></td><td>${parseAndPill(value)}</td></tr>`;
+    if (metaTableWrap) metaTableWrap.classList.remove('hidden');
+    if (metaBody) {
+      let metaHtml = '';
+      for (const [key, value] of Object.entries(metadata)) {
+        metaHtml += `<tr><td><span class="pill-key">${escapeHTML(key)}</span></td><td>${parseAndPill(value)}</td></tr>`;
+      }
+      metaBody.innerHTML = metaHtml;
     }
-    metaBody.innerHTML = metaHtml;
   } else {
-    metaTableWrap.classList.add('hidden');
-    metaBody.innerHTML = '';
+    if (metaTableWrap) metaTableWrap.classList.add('hidden');
+    if (metaBody) metaBody.innerHTML = '';
   }
   
   // Normalize timestamps to ensure ranges: if no end time, use next start time
   const normalized = (() => {
+    if (timestamps.length === 0) return [];
+    
     const withStart = timestamps.map((t, i) => ({ ...t, __idx: i, __start: timeToSeconds(t.time) }));
     const sorted = [...withStart].sort((a, b) => a.__start - b.__start);
     const idxToDisplay = new Map();
@@ -1090,38 +1240,63 @@ function buildStructuredOutput(text) {
   })();
 
   const grouped = normalized.reduce((acc, ts) => {
-    const cat = ts.category.trim();
+    const cat = (ts.category || 'General').trim();
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(ts);
     return acc;
   }, {});
 
-  let cardsHtml = '';
-  for (const category in grouped) {
-    if (!passesFilter(category)) continue;
+  console.log('Grouped timestamps:', Object.keys(grouped).length, 'categories', Object.keys(grouped));
 
-    const items = grouped[category];
+  let cardsHtml = '';
+  for (const [category, items] of Object.entries(grouped)) {
+    if (!category || !items || items.length === 0) continue;
+    if (!passesFilter(category)) continue;
+    
     const catClass = categoryClass(category);
     
     const rows = items.map(it => {
-      const label = escapeHTML(it.displayTime || it.time);
+      const label = escapeHTML(it.displayTime || it.time || '');
       const desc = escapeHTML(it.description || '');
-      return `<div class="timestamp-card ${catClass}"><h3><button class="link ts-jump" data-ts="${label}"><span class="pill-time">${label}</span></button></h3><p class="ts-desc">${desc}</p></div>`;
+      return `<div class="timestamp-card ${catClass}"><div class="ts-time-pill"><button class="link ts-jump" data-ts="${label}" style="border: none; background: none; padding: 0; cursor: pointer;"><span class="pill-time">${label}</span></button></div><p class="ts-desc">${desc}</p></div>`;
     }).join('');
     
-    cardsHtml += `<div class="timestamp-card-group"><h2 class="panel-title">${escapeHTML(category)}</h2><div class="timestamp-card-list">${rows}</div></div>`;
+    if (rows) {
+      const categoryUpper = escapeHTML(category.toUpperCase());
+      cardsHtml += `<div class="timestamp-card-group"><h2 class="timestamp-category-title ${catClass}">${categoryUpper}</h2><div class="timestamp-card-list">${rows}</div></div>`;
+    }
   }
   
   // Ensure timestampCardsContainer exists before setting innerHTML
   if (timestampCardsContainer) {
-    timestampCardsContainer.innerHTML = cardsHtml || `<div class="muted">No timestamps detected yet.</div>`;
-    // Show the timestamps section if we have cards
+    // Check if we have timestamps but they were filtered out
+    const hasTimestamps = timestamps && timestamps.length > 0;
+    const hasFilteredResults = cardsHtml && cardsHtml.trim().length > 0;
+    
+    if (!hasTimestamps) {
+      timestampCardsContainer.innerHTML = `<div class="muted" style="padding: 20px; text-align: center;">No timestamps detected yet.</div>`;
+    } else if (!hasFilteredResults && activeTsFilter !== 'all') {
+      const filterName = filterLabel(activeTsFilter);
+      timestampCardsContainer.innerHTML = `<div class="muted" style="padding: 20px; text-align: center;">No timestamps found for "${filterName}" category.</div>`;
+    } else {
+      timestampCardsContainer.innerHTML = cardsHtml || `<div class="muted" style="padding: 20px; text-align: center;">No timestamps detected yet.</div>`;
+    }
+    
+    // Show the timestamps section if we have cards or if we're showing a message
     const timestampsSection = document.getElementById('timestamps');
-    if (timestampsSection && cardsHtml) {
-      timestampsSection.classList.remove('hidden');
+    if (timestampsSection) {
+      if (hasTimestamps) {
+        timestampsSection.classList.remove('hidden');
+        console.log('✅ Timestamps section shown, cards:', cardsHtml ? cardsHtml.substring(0, 100) : 'no cards');
+      } else {
+        timestampsSection.classList.add('hidden');
+        console.log('⚠️ No timestamp cards generated, hiding section');
+      }
+    } else {
+      console.warn('⚠️ timestamps section element not found');
     }
   } else {
-    console.warn('timestampCardsContainer not found');
+    console.error('❌ timestampCardsContainer not found');
   }
 }
 
@@ -1155,8 +1330,10 @@ timestampCardsContainer?.addEventListener('click', (e) => {
   }
 });
 
-tsFilterBtn?.addEventListener('click', () => {
+tsFilterBtn?.addEventListener('click', (e) => {
+  e.stopPropagation();
   tsFilterDropdown.classList.toggle('hidden');
+  setTimeout(() => updateFilterHighlight(), 10);
 });
 
 document.addEventListener('click', (e) => {
@@ -1165,15 +1342,48 @@ document.addEventListener('click', (e) => {
   tsFilterDropdown.classList.add('hidden');
 });
 
+// Update active filter highlighting in dropdown
+function updateFilterHighlight() {
+  if (!tsFilterDropdown) return;
+  const options = tsFilterDropdown.querySelectorAll('.filter-option');
+  options.forEach(opt => {
+    const filterVal = opt.getAttribute('data-filter') || 'all';
+    if (filterVal === activeTsFilter) {
+      opt.style.background = 'rgba(124, 196, 255, 0.15)';
+      opt.style.borderColor = 'rgba(124, 196, 255, 0.4)';
+    } else {
+      opt.style.background = '';
+      opt.style.borderColor = '';
+    }
+  });
+}
+
 tsFilterDropdown?.addEventListener('click', (e) => {
   const btn = e.target.closest('.filter-option');
   if (!btn) return;
+  
+  e.preventDefault();
+  e.stopPropagation();
+  
   const val = btn.getAttribute('data-filter') || 'all';
   activeTsFilter = val;
-  activeFilterPill.textContent = filterLabel(val);
+  
+  if (activeFilterPill) {
+    activeFilterPill.textContent = filterLabel(val);
+  }
+  
+  updateFilterHighlight();
   tsFilterDropdown.classList.add('hidden');
-  buildStructuredOutput(resultsPre.textContent);
+  
+  // Rebuild structured output with new filter
+  if (resultsPre && resultsPre.textContent) {
+    console.log(`🔄 Applying filter: ${val}`);
+    buildStructuredOutput(resultsPre.textContent);
+  } else {
+    console.warn('⚠️ No analysis text available to filter');
+  }
 });
+
 
 function filterLabel(val) {
   switch (val) {
@@ -1188,13 +1398,28 @@ function filterLabel(val) {
 
 function passesFilter(category) {
   if (activeTsFilter === 'all') return true;
-  const c = (category || '').toLowerCase();
-  if (activeTsFilter === '911_call') return /911/.test(c);
-  if (activeTsFilter === 'investigation') return /investigation/.test(c);
-  if (activeTsFilter === 'interrogation') return /interrogation/.test(c);
-  if (activeTsFilter === 'cctv') return /cctv|footage/.test(c);
-  if (activeTsFilter === 'body_cam') return /body\s*cam/.test(c);
-  return true;
+  if (!category) return false;
+  
+  const c = (category || '').toLowerCase().trim();
+  
+  // More robust matching for each filter type
+  if (activeTsFilter === '911_call') {
+    return /911|call|emergency|dispatch/.test(c);
+  }
+  if (activeTsFilter === 'investigation') {
+    return /investigation|investigat/.test(c);
+  }
+  if (activeTsFilter === 'interrogation') {
+    return /interrogation|interrogat/.test(c);
+  }
+  if (activeTsFilter === 'cctv') {
+    return /cctv|footage|surveillance|security\s*camera/.test(c);
+  }
+  if (activeTsFilter === 'body_cam') {
+    return /body\s*cam|bodycam|body\s*camera|officer\s*cam/.test(c);
+  }
+  
+  return false;
 }
 
 document.getElementById('copyBtn')?.addEventListener('click', async () => {
@@ -1323,7 +1548,7 @@ async function loadHistory() {
   return await resp.json();
 }
 
-async function renderHistory() {
+async function renderHistory(searchQuery = '') {
   if (!historyList) return;
   historyList.innerHTML = '';
   const history = await loadHistory();
@@ -1332,12 +1557,63 @@ async function renderHistory() {
     await updateHistoryStorageUI();
     return;
   }
-  for (const item of history) {
+  
+  // Filter history based on search query
+  const query = (searchQuery || '').toLowerCase().trim();
+  const filteredHistory = query 
+    ? history.filter(item => item.name.toLowerCase().includes(query))
+    : history;
+  
+  if (filteredHistory.length === 0 && query) {
+    historyList.innerHTML = `<li class="muted tiny" style="padding: 10px 12px;">No results found for "${escapeHTML(query)}".</li>`;
+    await updateHistoryStorageUI();
+    return;
+  }
+  
+  for (const item of filteredHistory) {
     const li = document.createElement('li');
     li.className = 'history-item';
     li.dataset.id = item.id;
+    
+    // Format date and time
+    let dateTimeText = '';
+    if (item.createdAt || item.date || item.id) {
+      const timestamp = item.createdAt || (item.date ? new Date(item.date).getTime() : parseInt(item.id));
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+      
+      // Relative time for recent items
+      if (diffMins < 1) {
+        dateTimeText = 'Just now';
+      } else if (diffMins < 60) {
+        dateTimeText = `${diffMins}m ago`;
+      } else if (diffHours < 24) {
+        dateTimeText = `${diffHours}h ago`;
+      } else if (diffDays < 7) {
+        dateTimeText = `${diffDays}d ago`;
+      } else {
+        // Full date for older items
+        dateTimeText = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+      }
+      
+      // Add time if less than a day old
+      if (diffDays < 1) {
+        const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        dateTimeText += ` • ${timeStr}`;
+      }
+    }
+    
     li.innerHTML = `
-      <span class="history-name pill-tag" title="${item.name}">${item.name}</span>
+      <div class="history-item-content">
+        <span class="history-name pill-tag" title="${item.name}">
+          <span class="pill-name-text">${escapeHTML(item.name)}</span>
+          ${dateTimeText ? `<span class="pill-date-text">${escapeHTML(dateTimeText)}</span>` : ''}
+        </span>
+      </div>
       <div class="history-menu">
         <button class="history-menu-btn" data-item-id="${item.id}" aria-label="More options">⋮</button>
         <div class="history-menu-dropdown hidden" data-item-id="${item.id}">
@@ -1423,7 +1699,8 @@ async function addHistoryItem(analysisText) {
     return;
   }
   
-  await renderHistory();
+  const searchQuery = historySearch ? historySearch.value.trim() : '';
+  await renderHistory(searchQuery);
 }
 
 function bytesToHuman(bytes) {
@@ -1525,7 +1802,8 @@ historyList?.addEventListener('click', async (e) => {
             resultsPre.textContent = '';
             if (shareBtn) shareBtn.disabled = true;
           }
-          await renderHistory();
+          const searchQuery = historySearch ? historySearch.value.trim() : '';
+          await renderHistory(searchQuery);
           await updateHistoryStorageUI();
           showToast(`"${item.name}" deleted successfully.`);
         } else {
@@ -1541,7 +1819,8 @@ historyList?.addEventListener('click', async (e) => {
           headers: { 'Content-Type':'application/json' }, 
           body: JSON.stringify({ name: newName.trim() }) 
         });
-        await renderHistory();
+        const searchQuery = historySearch ? historySearch.value.trim() : '';
+        await renderHistory(searchQuery);
       }
     } else if (action === 'share') {
       await shareAnalysis(item.analysisText, item.videoUrl || '', item.fileName);
@@ -1621,5 +1900,77 @@ historyList?.addEventListener('click', async (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await renderHistory();
+  const searchQuery = historySearch ? historySearch.value.trim() : '';
+  await renderHistory(searchQuery);
+  
+  // History search functionality
+  if (historySearch) {
+    historySearch.addEventListener('input', (e) => {
+      const query = e.target.value.trim();
+      renderHistory(query);
+    });
+    
+    // Clear search on Escape key
+    historySearch.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        historySearch.value = '';
+        renderHistory('');
+      }
+    });
+  }
+  
+  // History panel hover functionality
+  const historyHoverZone = document.getElementById('historyHoverZone');
+  const historyPanel = document.getElementById('historyPanel');
+  const newAnalysisBtnSide = document.getElementById('newAnalysisBtnSide');
+  let hoverTimeout = null;
+  
+  if (historyHoverZone && historyPanel) {
+    const updateButtonPosition = (panelVisible) => {
+      if (newAnalysisBtnSide) {
+        if (panelVisible) {
+          newAnalysisBtnSide.style.left = '310px';
+        } else {
+          newAnalysisBtnSide.style.left = '30px';
+        }
+      }
+    };
+    
+    // Show panel when mouse enters hover zone
+    historyHoverZone.addEventListener('mouseenter', () => {
+      if (hoverTimeout) clearTimeout(hoverTimeout);
+      historyPanel.style.transform = 'translateX(0)';
+      updateButtonPosition(true);
+    });
+    
+    // Keep panel visible when hovering over it
+    historyPanel.addEventListener('mouseenter', () => {
+      if (hoverTimeout) clearTimeout(hoverTimeout);
+      historyPanel.style.transform = 'translateX(0)';
+      updateButtonPosition(true);
+    });
+    
+    // Hide panel with slight delay when mouse leaves
+    historyPanel.addEventListener('mouseleave', () => {
+      hoverTimeout = setTimeout(() => {
+        historyPanel.style.transform = 'translateX(-100%)';
+        updateButtonPosition(false);
+      }, 200);
+    });
+    
+    // Also hide when leaving hover zone (if not entering panel)
+    historyHoverZone.addEventListener('mouseleave', (e) => {
+      // Check if mouse is moving to panel
+      const relatedTarget = e.relatedTarget;
+      if (!relatedTarget || !historyPanel.contains(relatedTarget)) {
+        hoverTimeout = setTimeout(() => {
+          historyPanel.style.transform = 'translateX(-100%)';
+          updateButtonPosition(false);
+        }, 200);
+      }
+    });
+    
+    // Initialize button position
+    updateButtonPosition(false);
+  }
 });

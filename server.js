@@ -531,6 +531,11 @@ async function streamWithRetry(model, request, { attempts = 3, initialDelayMs = 
 // ---------- endpoint ----------
 
 app.post('/upload', (req, res) => {
+  // Set streaming headers IMMEDIATELY - this allows client to start receiving response
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('X-Accel-Buffering', 'no');
+  
   upload(req, res, async (err) => {
     if (err) {
       const message = err.message || 'File upload error';
@@ -552,11 +557,17 @@ app.post('/upload', (req, res) => {
       return res.status(400).send('URL must be a valid YouTube link.');
     }
 
-    // streaming headers
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders?.();
+    // Send immediate acknowledgment - this ensures client gets response right away
+    // For YouTube URLs, send a specific message; for local files, send generic message
+    try {
+      const message = hasUrl ? '[Notice] YouTube URL received. Processing...\n' : '[Notice] Request received. Processing...\n';
+      res.write(message);
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+    } catch (flushError) {
+      console.warn('Could not flush initial response:', flushError);
+    }
 
     let localPath = null;
     let cleanupPath = null;
@@ -752,7 +763,16 @@ app.post('/api/history', async (req, res) => {
     const { name, analysisText, videoUrl, fileName } = req.body || {};
     if (!analysisText || !name) return res.status(400).json({ message: 'Missing name or analysisText' });
     const items = await readHistory();
-    const newItem = { id: Date.now().toString(), name, analysisText, videoUrl: videoUrl || null, fileName };
+    const timestamp = Date.now();
+    const newItem = { 
+      id: timestamp.toString(), 
+      name, 
+      analysisText, 
+      videoUrl: videoUrl || null, 
+      fileName,
+      createdAt: timestamp,
+      date: new Date(timestamp).toISOString()
+    };
     const used = await computeUsedBytes(items);
     const addBytes = textSizeBytes(analysisText) + (await getFileSizeBytesFromShared(videoUrl));
     if (used + addBytes > TOTAL_STORAGE_BYTES) {
@@ -869,8 +889,9 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`✅ Server listening on http://localhost:${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server listening on http://0.0.0.0:${PORT} (accessible from all network interfaces)`);
+  console.log(`   Local access: http://localhost:${PORT}`);
 });
 server.headersTimeout = 60 * 1000;
 server.requestTimeout = 0;

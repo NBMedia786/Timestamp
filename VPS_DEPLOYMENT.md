@@ -21,7 +21,7 @@
 Create a `.env` file in your project root:
 
 ```env
-PORT=3000
+PORT=3001
 GEMINI_API_KEY=your_actual_gemini_api_key_here
 ```
 
@@ -35,7 +35,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:3001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -45,10 +45,28 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
         
+        # ⚠️ CRITICAL: Disable buffering for streaming responses
+        # This fixes "stuck on connecting" issues
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_request_buffering off;
+        
+        # Increase timeouts for long-running analysis requests
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 600s;
+        proxy_read_timeout 600s;
+        
         # For file uploads
         client_max_body_size 2048M;
+        client_body_timeout 300s;
     }
 }
+```
+
+**⚠️ IMPORTANT:** After updating nginx config:
+```bash
+sudo nginx -t           # Test configuration
+sudo systemctl reload nginx  # Reload nginx
 ```
 
 ### 3. Process Manager (PM2 - Recommended)
@@ -72,13 +90,13 @@ chmod -R 755 shared/
 
 ### 5. Firewall
 
-Open the port your app runs on (default 3000):
+Open the port your app runs on (default 3001):
 ```bash
 # Ubuntu/Debian
-sudo ufw allow 3000/tcp
+sudo ufw allow 3001/tcp
 
 # CentOS/RHEL
-sudo firewall-cmd --permanent --add-port=3000/tcp
+sudo firewall-cmd --permanent --add-port=3001/tcp
 sudo firewall-cmd --reload
 ```
 
@@ -123,14 +141,20 @@ your-project/
 
 ## ✅ Testing Checklist
 
-- [ ] Main page loads at `http://your-domain:3000`
+- [ ] Main page loads at `http://your-domain:3001`
 - [ ] Can analyze videos (both local upload and YouTube)
 - [ ] History saves and loads correctly
-- [ ] Shareable links work: `http://your-domain:3000/share/abc123`
+- [ ] Shareable links work: `http://your-domain:3001/share/abc123`
 - [ ] Shared videos play correctly
 - [ ] Storage bar updates correctly
 
 ## 🐛 Troubleshooting
+
+**Issue**: "Stuck on Connecting to Server" or timeout
+- **Most Common Cause**: Nginx buffering
+- **Fix**: Add `proxy_buffering off;` to nginx config (see Reverse Proxy section above)
+- **Also Check**: Server is running (`pm2 list`), firewall allows port 3000
+- **See**: `DIAGNOSTIC_GUIDE.md` for detailed troubleshooting
 
 **Issue**: Shareable links show `localhost:3000`
 - **Fix**: Make sure your reverse proxy (if using) sets the `Host` header correctly
@@ -140,6 +164,10 @@ your-project/
 
 **Issue**: Port already in use
 - **Fix**: Change `PORT` in `.env` or kill the process using that port
+
+**Issue**: Server not responding
+- **Check**: `pm2 logs video-analysis` for errors
+- **Check**: Server binding to `0.0.0.0` not just `localhost`
 
 ## 📝 Notes
 

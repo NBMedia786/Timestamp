@@ -69,33 +69,48 @@ function parseGeminiOutput(text) {
                 break;
             }
             case 'TIMESTAMPS': {
-                // Check for category header (lines without brackets)
+                // Check for category header (lines without brackets or timestamps)
                 const categoryMatch = trimmedLine.match(/^\s*(?:\*{1,3}|#{1,3}|\d+\.?)\s*([A-Z0-9\s/&-]+?)\s*(?:\*{1,3}|:)?\s*$/i);
                 if (categoryMatch && !trimmedLine.includes('[') && !trimmedLine.includes('-')) { 
-                    currentCategory = clean(categoryMatch[1]) || currentCategory; 
+                    const newCategory = clean(categoryMatch[1]);
+                    if (newCategory) {
+                        currentCategory = newCategory;
+                    }
                     continue; 
                 }
                 // Match timestamp format: [MM:SS] or [MM:SS - MM:SS] - Description
-                const tsMatch = trimmedLine.match(/\[([^\]]+)\]\s*-\s*(.+)/);
+                // Also handle formats like: [00:15] Description (without dash)
+                const tsMatch = trimmedLine.match(/\[([^\]]+)\]\s*-?\s*(.+)?/);
                 if (tsMatch) {
-                    let description = clean(tsMatch[2]);
+                    const timePart = clean(tsMatch[1]);
+                    let description = (tsMatch[2] || '').trim();
+                    
+                    // If no description but we have a time, try to extract from next line or use default
+                    if (!description || description.length === 0) {
+                        description = 'Timestamp marker';
+                    }
+                    
                     let finalCategory = clean(currentCategory) || 'General';
+                    
                     // If description starts with category name, extract it
-                    const descParts = description.split(/\s*-\s*/);
-                    if (descParts.length > 1) {
-                        const firstPart = descParts[0].trim();
-                        if (firstPart.toUpperCase() === finalCategory.toUpperCase()) { 
-                            description = descParts.slice(1).join(' - ').trim(); 
-                        } else if (categoryClass(firstPart)) {
-                            // First part might be a category
-                            finalCategory = firstPart;
-                            description = descParts.slice(1).join(' - ').trim();
+                    if (description.includes('-')) {
+                        const descParts = description.split(/\s*-\s*/);
+                        if (descParts.length > 1) {
+                            const firstPart = descParts[0].trim();
+                            if (firstPart.toUpperCase() === finalCategory.toUpperCase()) {
+                                description = descParts.slice(1).join(' - ').trim();
+                            } else if (categoryClass(firstPart)) {
+                                // First part might be a category
+                                finalCategory = firstPart;
+                                description = descParts.slice(1).join(' - ').trim();
+                            }
                         }
                     }
+                    
                     timestamps.push({ 
-                        time: clean(tsMatch[1]), 
-                        category: finalCategory, 
-                        description: clean(description) 
+                        time: timePart,
+                        category: finalCategory || 'General',
+                        description: clean(description) || 'No description'
                     });
                 }
                 break;
@@ -112,7 +127,10 @@ function parseGeminiOutput(text) {
 
 function buildStructuredOutput(text) {
   if (!text || !text.trim()) {
-    console.warn('buildStructuredOutput called with empty text');
+    // Clear everything if no text
+    if (timestampCardsContainer) timestampCardsContainer.innerHTML = '';
+    if (summaryEl) summaryEl.innerHTML = '—';
+    if (metaTableWrap) metaTableWrap.classList.add('hidden');
     return;
   }
   
@@ -149,25 +167,32 @@ function buildStructuredOutput(text) {
     console.error('metaTableWrap or metaBody not found');
   }
   
-  // Normalize ranges: if only a start time is present, use next start as end
+  // Normalize timestamps to ensure ranges: if no end time, use next start time
   const normalized = (() => {
+    if (timestamps.length === 0) return [];
+    
     const withStart = timestamps.map((t, i) => ({ ...t, __idx: i, __start: timeToSeconds(t.time) }));
     const sorted = [...withStart].sort((a, b) => a.__start - b.__start);
     const idxToDisplay = new Map();
     for (let i = 0; i < sorted.length; i++) {
       const cur = sorted[i];
       const raw = String(cur.time || '');
-      if (/\s-\s/.test(raw)) { idxToDisplay.set(cur.__idx, raw); continue; }
+      if (/\s-\s/.test(raw)) { // already a range
+        idxToDisplay.set(cur.__idx, raw);
+        continue;
+      }
       const next = sorted[i + 1];
       if (next && isFinite(next.__start) && next.__start > cur.__start) {
+        // Build HH:MM or MM:SS string for next start based on digits in current
         const toLabel = (secs) => {
           const h = Math.floor(secs / 3600); const m = Math.floor((secs % 3600) / 60); const s = Math.floor(secs % 60);
-          if (h > 0) return `${String(h).padStart(1,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-          return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+          if (h > 0) return `${String(h).padStart(1, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
         };
-        idxToDisplay.set(cur.__idx, `${raw} - ${toLabel(next.__start)}`);
+        const display = `${raw} - ${toLabel(next.__start)}`;
+        idxToDisplay.set(cur.__idx, display);
       } else {
-        idxToDisplay.set(cur.__idx, raw);
+        idxToDisplay.set(cur.__idx, raw); // leave as-is for last item
       }
     }
     return withStart.map(t => ({ ...t, displayTime: idxToDisplay.get(t.__idx) || t.time }));
@@ -190,10 +215,11 @@ function buildStructuredOutput(text) {
     const rows = items.map(it => {
         const label = escapeHTML(it.displayTime || it.time || '');
         const desc = escapeHTML(it.description || '');
-        return `<div class="timestamp-card ${catClass}"><h3><button class="link ts-jump" data-ts="${label}"><span class="pill-time">${label}</span></button></h3><p class="ts-desc">${desc}</p></div>`;
+        return `<div class="timestamp-card ${catClass}"><div class="ts-time-pill"><button class="link ts-jump" data-ts="${label}" style="border: none; background: none; padding: 0; cursor: pointer;"><span class="pill-time">${label}</span></button></div><p class="ts-desc">${desc}</p></div>`;
     }).join('');
     if (rows) {
-      cardsHtml += `<div class="timestamp-card-group"><h2 class="panel-title">${escapeHTML(category)}</h2><div class="timestamp-card-list">${rows}</div></div>`;
+      const categoryUpper = escapeHTML(category.toUpperCase());
+      cardsHtml += `<div class="timestamp-card-group"><h2 class="timestamp-category-title ${catClass}">${categoryUpper}</h2><div class="timestamp-card-list">${rows}</div></div>`;
     }
   }
   

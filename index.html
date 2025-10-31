@@ -3,16 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Video Analysis — Gemini 2.5 Pro</title>
+  <title>Video Analysis — Powered By NB Media</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
 </head>
 <body class="app-layout">
+  <div id="particlesContainer" class="particles-container"></div>
+  <div id="historyHoverZone" class="history-hover-zone"></div>
+  <button id="newAnalysisBtnSide" class="new-analysis-fab" type="button" title="Start a new analysis">➕ New Analysis</button>
   <aside id="historyPanel" class="panel glass">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:8px;">
       <span class="pill-key" title="History">History</span>
-      <button id="newAnalysisBtnSide" class="btn ghost" type="button" title="Start a new analysis">➕ New Analysis</button>
+    </div>
+    <div style="padding: 8px 12px; border-bottom: 1px solid var(--border);">
+      <input type="text" id="historySearch" class="history-search-input" placeholder="🔍 Search history..." autocomplete="off">
     </div>
     <ul id="historyList" class="history-list"></ul>
     <div class="storage-footer">
@@ -28,9 +33,9 @@
 
   <main class="main-content-wrapper">
     <div class="container">
-    <header class="header glass animate-pop">
+    <header class="header animate-pop">
       <div class="title-wrap">
-        <h1>Video Analysis — Gemini 2.5 Pro</h1>
+        <h1>Video Analysis — Powered By NB Media</h1>
         <p class="subtitle muted">Upload or link a video, analyze with your prompt, and validate timestamps in-app.</p>
       </div>
       <div class="header-actions"></div>
