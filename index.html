@@ -197,6 +197,7 @@
 
   <div id="progressModal" class="progress-modal hidden">
     <div class="progress-modal-content glass">
+      <button id="closeProgressModal" class="progress-modal-close" aria-label="Close" title="Close">×</button>
       <div class="progress-spinner"></div>
       <h3 id="progressStatus" class="progress-status-text">Submitting...</h3>
       
@@ -238,6 +239,12 @@
                   <div class="checkpoint-dot"></div>
                 </div>
                 <span class="checkpoint-label">Complete</span>
+              </div>
+              <div class="checkpoint" data-checkpoint="finalize">
+                <div class="checkpoint-icon">
+                  <div class="checkpoint-dot"></div>
+                </div>
+                <span class="checkpoint-label">Finalize</span>
               </div>
             </div>
           </div>

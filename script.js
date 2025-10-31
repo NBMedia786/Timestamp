@@ -14,6 +14,7 @@ const progressModal = document.getElementById('progressModal');
 const progressStatus = document.getElementById('progressStatus');
 const progressLinearBar = document.getElementById('progressLinearBar');
 const progressConsole = document.getElementById('progressConsole');
+const closeProgressModal = document.getElementById('closeProgressModal');
 
 const resultsPre = document.getElementById('results');
 const timestampCardsContainer = document.getElementById('timestampCards');
@@ -254,7 +255,7 @@ function activateCheckpoint(checkpointName) {
   currentCheckpoint = checkpointName;
   
   // Update progress bar position
-  const checkpoints = ['upload', 'process', 'analyze', 'complete'];
+  const checkpoints = ['upload', 'process', 'analyze', 'complete', 'finalize'];
   const index = checkpoints.indexOf(checkpointName);
   const progress = index >= 0 ? ((index + 1) / checkpoints.length) * 100 : 0;
   updateCheckpointProgress(progress);
@@ -313,7 +314,7 @@ function setUpload(pct, label) {
   // Update checkpoint progress based on overall progress
   if (checkpointProgressBar && currentCheckpoint) {
     // Interpolate checkpoint progress based on overall progress
-    const checkpoints = ['upload', 'process', 'analyze', 'complete'];
+    const checkpoints = ['upload', 'process', 'analyze', 'complete', 'finalize'];
     const currentIndex = checkpoints.indexOf(currentCheckpoint);
     const baseProgress = (currentIndex / checkpoints.length) * 100;
     const checkpointRange = 100 / checkpoints.length;
@@ -644,7 +645,19 @@ async function handleSubmit(e) {
       showToast(msg);
       throw new Error(msg);
     }
-
+    
+    // Validate response body exists
+    if (!res.body) {
+      const errorMsg = 'Server response has no body. The server may have encountered an error.';
+      console.error('No response body:', res);
+      updateStep('Server error: No response body', true, true);
+      addConsoleLog(`[Error] ${errorMsg}`);
+      showToast(errorMsg);
+      setUpload(0, 'Idle');
+      return;
+    }
+    
+    console.log('Response body available, starting stream read...');
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let hasReceivedData = false;
@@ -672,29 +685,48 @@ async function handleSubmit(e) {
       }
     }, 30000); // Check every 30 seconds
 
+    console.log('Entering stream read loop...');
     while (true) {
       let readResult;
       try {
         readResult = await reader.read();
+        console.log('Read chunk:', { done: readResult.done, hasValue: !!readResult.value });
       } catch (readError) {
         if (activityTimer) clearInterval(activityTimer);
+        console.error('Stream read error:', readError);
         updateStep('Stream read error', true, true);
         addConsoleLog(`[Error] Stream read error: ${readError.message}`);
+        showToast(`Stream error: ${readError.message}`);
         throw readError;
       }
       
       const { value, done } = readResult;
       if (done) {
+        console.log('Stream finished (done = true)');
         if (activityTimer) clearInterval(activityTimer);
         break;
+      }
+      
+      if (!value) {
+        console.warn('Received chunk with no value, continuing...');
+        continue;
       }
       
       // Update activity time when we receive data
       lastActivityTime = Date.now();
       hasReceivedData = true;
-      const chunk = decoder.decode(value, { stream: true });
-      resultsPre.textContent += chunk;
-      resultsPre.scrollTop = resultsPre.scrollHeight;
+      
+      try {
+        const chunk = decoder.decode(value, { stream: true });
+        if (chunk) {
+          resultsPre.textContent += chunk;
+          resultsPre.scrollTop = resultsPre.scrollHeight;
+          console.log('Decoded chunk length:', chunk.length);
+        }
+      } catch (decodeError) {
+        console.error('Decode error:', decodeError);
+        continue; // Skip this chunk but continue reading
+      }
 
       // Check for server-sent progress lines
       // Process lines individually as they come from the server
@@ -737,16 +769,85 @@ async function handleSubmit(e) {
       updateStep('Warning: No data received from server', true, true);
       showToast('Analysis completed but no results received');
     } else {
-      setUpload(100, 'Complete ✓');
-      updateStep('Analysis complete! All results are ready.', true);
+      setUpload(95, 'Analysis complete!');
+      updateStep('Analysis complete! Processing results...', true);
       activateCheckpoint('complete');
-      updateCheckpointProgress(100);
+      updateCheckpointProgress(80); // 4/5 = 80% (complete checkpoint)
       
       // Final streaming content summary
       if (progressConsole && resultsPre.textContent.trim().length > 0) {
         updateStreamingContent(resultsPre.textContent);
+      }
+      
+      // Activate finalize checkpoint before saving and loading video
+      setUpload(97, 'Finalizing...');
+      updateStep('Preparing video player and saving results...', false);
+      activateCheckpoint('finalize');
+      updateCheckpointProgress(90); // Start of finalize checkpoint
+    }
+
+    // Add to history and finalize video loading
+    if (resultsPre.textContent.trim().length > 0) {
+        shareBtn.disabled = false;
         
-        // Add a nice completion message that stays visible
+        // Save to history (this may upload local video file if needed)
+        if (typeof localforage !== 'undefined') {
+          updateStep('Saving analysis to history...', false);
+          await addHistoryItem(resultsPre.textContent);
+        }
+        
+        // Ensure video is loaded in player (for local files, ensure object URL is still valid)
+        // For YouTube videos, they should already be loaded, but we ensure it's visible
+        if (currentVideoFile) {
+          updateStep('Loading video into player...', false);
+          // Recreate object URL if needed for local files
+          try {
+            // Check if player already has a valid src
+            if (!player.src || player.src === window.location.href) {
+              const objUrl = URL.createObjectURL(currentVideoFile);
+              player.src = objUrl;
+            }
+            player.classList.remove('hidden');
+            ytFrame.removeAttribute('src');
+            ytWrap.classList.add('hidden');
+            // Small delay to ensure video is ready
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (videoError) {
+            console.warn('Could not reload local video:', videoError);
+          }
+        } else if (urlInput && urlInput.value.trim()) {
+          // For YouTube videos, ensure embed is visible
+          updateStep('Loading video into player...', false);
+          const embed = toYouTubeEmbed(urlInput.value.trim());
+          if (embed) {
+            ytFrame.src = embed;
+            ytWrap.classList.remove('hidden');
+            player.classList.add('hidden');
+          }
+          // Small delay to ensure iframe is ready
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        
+        // Auto-switch to results tab
+        updateStep('Opening results view...', false);
+        mainTabs.forEach(b => b.classList.remove('active'));
+        document.querySelector('[data-tab-main="results"]').classList.add('active');
+        mainTabContents.forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-results-main').classList.add('active');
+
+        // Ensure inner results tab shows Structured by default
+        tabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        document.querySelector('.tab[data-tab="structured"]').classList.add('active');
+        document.getElementById('tab-structured').classList.add('active');
+        
+        // Mark finalize as complete
+        setUpload(100, 'Complete ✓');
+        updateStep('Everything is ready!', true);
+        activateCheckpoint('finalize');
+        updateCheckpointProgress(100);
+        
+        // Add celebration message
         setTimeout(() => {
           if (progressConsole) {
             const celebration = document.createElement('div');
@@ -758,29 +859,7 @@ async function handleSubmit(e) {
             progressConsole.appendChild(celebration);
             progressConsole.scrollTop = progressConsole.scrollHeight;
           }
-        }, 800);
-      }
-    }
-
-    // Add to history
-    if (resultsPre.textContent.trim().length > 0) {
-        shareBtn.disabled = false;
-        if (typeof localforage !== 'undefined') {
-          await addHistoryItem(resultsPre.textContent);
-        }
-        
-        // Auto-switch to results tab
-        // Switch main tabs: Analyze -> Results
-        mainTabs.forEach(b => b.classList.remove('active'));
-        document.querySelector('[data-tab-main="results"]').classList.add('active');
-        mainTabContents.forEach(c => c.classList.remove('active'));
-        document.getElementById('tab-results-main').classList.add('active');
-
-        // Ensure inner results tab shows Structured by default
-        tabs.forEach(t => t.classList.remove('active'));
-        tabContents.forEach(c => c.classList.remove('active'));
-        document.querySelector('.tab[data-tab="structured"]').classList.add('active');
-        document.getElementById('tab-structured').classList.add('active');
+        }, 300);
     }
 
   } catch (err) {
@@ -794,7 +873,8 @@ async function handleSubmit(e) {
     // Show detailed error in toast
     let displayMsg = errorMsg;
     if (errorMsg.includes('Failed to fetch') || errorMsg.includes('Network error')) {
-      displayMsg = 'Cannot connect to server. Make sure the server is running on http://localhost:3000';
+      const serverUrl = window.location.origin || 'the server';
+      displayMsg = `Cannot connect to server. Please check that the server is running at ${serverUrl}`;
     } else if (errorMsg.includes('401') || errorMsg.includes('403')) {
       displayMsg = 'Authentication error. Check your GEMINI_API_KEY in .env file';
     } else if (errorMsg.includes('timeout')) {
@@ -805,12 +885,27 @@ async function handleSubmit(e) {
     submitBtn.disabled = false;
     // Hide modal after a delay on success
     setTimeout(() => {
-        if (progressStatus && progressStatus.textContent === 'Complete ✓') {
+        if (progressStatus && progressStatus.textContent.includes('Complete')) {
             setUpload(0, 'Idle'); // Hide modal
         }
-    }, 2000);
+    }, 3000); // Increased to 3 seconds to let users see the completion message
   }
 }
+
+// Close modal button handler
+closeProgressModal?.addEventListener('click', () => {
+  setUpload(0, 'Idle');
+});
+
+// Close modal when clicking outside (on the overlay)
+progressModal?.addEventListener('click', (e) => {
+  if (e.target === progressModal) {
+    // Only close if clicking on the overlay, not the content
+    if (progressStatus && progressStatus.textContent.includes('Complete')) {
+      setUpload(0, 'Idle');
+    }
+  }
+});
 
 // Attach submit handler to form
 form.addEventListener('submit', handleSubmit);
@@ -1273,6 +1368,7 @@ async function addHistoryItem(analysisText) {
   
   // If we have a local file, upload it to shared directory to get a permanent URL
   if (!url && file) {
+    console.log('Uploading local video to VPS storage...', { fileName: file.name, fileSize: file.size });
     try {
       const fd = new FormData();
       fd.append('file', file);
@@ -1286,17 +1382,26 @@ async function addHistoryItem(analysisText) {
           if (url.startsWith('/')) {
             url = new URL(url, window.location.origin).href;
           }
-          console.log('Video uploaded to shared directory:', url);
+          console.log('✅ Video successfully uploaded to VPS storage:', url);
+          showToast('Video saved to VPS storage');
+        } else {
+          console.warn('Server response missing URL:', j);
         }
       } else {
         const errorText = await r.text();
-        console.error('Failed to upload video to shared directory:', r.status, errorText);
+        console.error('❌ Failed to upload video to VPS storage:', r.status, errorText);
+        showToast('Warning: Video upload failed. History will be saved without video.');
         // Continue without URL - file won't be accessible from history
       }
     } catch (err) {
-      console.error('Error uploading video to shared directory:', err);
+      console.error('❌ Error uploading video to VPS storage:', err);
+      showToast('Error: Video upload failed. History will be saved without video.');
       // Continue without URL
     }
+  } else if (url) {
+    console.log('Using existing video URL for history:', url);
+  } else {
+    console.log('No video file or URL to save with history item');
   }
   
   const name = fileName || (url ? (url.split('=')[1] || url) : `Analysis ${new Date().toLocaleString()}`);
