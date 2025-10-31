@@ -1,15 +1,3 @@
-/**
- * Express backend (Gemini 2.5 Pro) with YouTube robustness + retry/backoff:
- * - Serves static frontend
- * - POST /upload accepts a file (multer 2.x) OR a YouTube URL + prompt
- * - If URL: downloads via yt-dlp (self-downloads binary if missing)
- * - Detects ffmpeg; adapts formats if merging isn't possible
- * - Uploads to Gemini File API, WAITS until ACTIVE (poll)
- * - Calls gemini-2.5-pro with generateContentStream
- * - Retries transient failures (503, 5xx, ETIMEDOUT/ECONNRESET)
- * - Streams chunks back to the client
- * - ALWAYS deletes temp files (local + Gemini) in finally
- */
 
 import 'dotenv/config';
 import express from 'express';
@@ -893,5 +881,5 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server listening on http://0.0.0.0:${PORT} (accessible from all network interfaces)`);
   console.log(`   Local access: http://localhost:${PORT}`);
 });
-server.headersTimeout = 60 * 1000;
+server.headersTimeout = 0;
 server.requestTimeout = 0;
