@@ -707,7 +707,7 @@ async function performAnalysis(prompt, url, file) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
-      }, 30000); // 30 second timeout
+      }, 300000000000000000000); // 30 second timeout
       
       res = await fetch('/upload', { 
         method: 'POST', 
