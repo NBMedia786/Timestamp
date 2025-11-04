@@ -2920,43 +2920,53 @@ async function renderHistory(searchQuery = '') {
 
     li.innerHTML = `
 
-      <div class="history-item-content">
+      <div class="history-item-content-wrapper">
 
-        <span class="history-name" title="${item.name}">
+        <div class="history-item-content">
 
-          ${escapeHTML(item.name)}
+          <span class="history-name" title="${item.name}">
 
-        </span>
+            ${escapeHTML(item.name)}
 
-        <span class="history-timestamp">${dateTimeText}</span>
+          </span>
+
+          <span class="history-timestamp">${dateTimeText}</span>
+
+        </div>
+
+        <div class="history-menu">
+
+          <button class="history-menu-btn" data-item-id="${item.id}" aria-label="More options">⋮</button>
+
+          <div class="history-menu-dropdown hidden" data-item-id="${item.id}">
+
+            <button class="history-menu-item" data-action="share" title="Share">
+
+              <span class="menu-icon">🔗</span> Share
+
+            </button>
+
+            <button class="history-menu-item" data-action="rename" title="Rename">
+
+              <span class="menu-icon">✏️</span> Rename
+
+            </button>
+
+            <button class="history-menu-item" data-action="delete" title="Delete">
+
+              <span class="menu-icon">🗑️</span> Delete
+
+            </button>
+
+          </div>
+
+        </div>
 
       </div>
 
-      <div class="history-menu">
+      <div class="history-delete-progress">
 
-        <button class="history-menu-btn" data-item-id="${item.id}" aria-label="More options">⋮</button>
-
-        <div class="history-menu-dropdown hidden" data-item-id="${item.id}">
-
-          <button class="history-menu-item" data-action="share" title="Share">
-
-            <span class="menu-icon">🔗</span> Share
-
-          </button>
-
-          <button class="history-menu-item" data-action="rename" title="Rename">
-
-            <span class="menu-icon">✏️</span> Rename
-
-          </button>
-
-          <button class="history-menu-item" data-action="delete" title="Delete">
-
-            <span class="menu-icon">🗑️</span> Delete
-
-          </button>
-
-        </div>
+        <div class="history-delete-progress-bar"></div>
 
       </div>
 
@@ -3448,39 +3458,83 @@ historyList?.addEventListener('click', async (e) => {
 
       if (confirm(`Delete "${item.name}"? This will permanently remove the analysis, associated video file, and any shared links.`)) {
 
-        const resp = await fetch(`/api/history/${id}`, { method: 'DELETE' });
+        // Show progress bar
+        itemEl.classList.add('deleting');
+        const progressBar = itemEl.querySelector('.history-delete-progress-bar');
+        if (progressBar) {
+          progressBar.style.width = '20%';
+        }
 
-        if (resp.ok) {
+        try {
+          // Simulate progress
+          const progressInterval = setInterval(() => {
+            if (progressBar) {
+              const currentWidth = parseFloat(progressBar.style.width) || 0;
+              if (currentWidth < 80) {
+                progressBar.style.width = Math.min(currentWidth + 20, 80) + '%';
+              }
+            }
+          }, 200);
 
-          // Check if the deleted item is currently loaded - if so, clear the view
+          const resp = await fetch(`/api/history/${id}`, { method: 'DELETE' });
 
-          const currentResults = resultsPre?.textContent || '';
+          clearInterval(progressInterval);
 
-          if (currentResults && currentResults.trim() === item.analysisText.trim()) {
+          if (progressBar) {
+            progressBar.style.width = '100%';
+          }
 
-            // Clear the current view since the deleted item was loaded
+          // Small delay to show completion
+          await new Promise(resolve => setTimeout(resolve, 300));
 
-            resetInputsOnly();
+          if (resp.ok) {
 
-            resultsPre.textContent = '';
+            // Check if the deleted item is currently loaded - if so, clear the view
 
-            if (shareBtn) shareBtn.disabled = true;
+            const currentResults = resultsPre?.textContent || '';
+
+            if (currentResults && currentResults.trim() === item.analysisText.trim()) {
+
+              // Clear the current view since the deleted item was loaded
+
+              resetInputsOnly();
+
+              resultsPre.textContent = '';
+
+              if (shareBtn) shareBtn.disabled = true;
+
+            }
+
+            const searchQuery = historySearch ? historySearch.value.trim() : '';
+
+            await renderHistory(searchQuery);
+
+            await updateHistoryStorageUI();
+
+            showToast(`"${item.name}" deleted successfully.`);
+
+          } else {
+
+            itemEl.classList.remove('deleting');
+            if (progressBar) {
+              progressBar.style.width = '0%';
+            }
+
+            const error = await resp.json().catch(() => ({}));
+
+            showToast(`Failed to delete: ${error.message || 'Unknown error'}`);
 
           }
 
-          const searchQuery = historySearch ? historySearch.value.trim() : '';
+        } catch (err) {
 
-          await renderHistory(searchQuery);
+          itemEl.classList.remove('deleting');
+          const progressBar = itemEl.querySelector('.history-delete-progress-bar');
+          if (progressBar) {
+            progressBar.style.width = '0%';
+          }
 
-          await updateHistoryStorageUI();
-
-          showToast(`"${item.name}" deleted successfully.`);
-
-        } else {
-
-          const error = await resp.json().catch(() => ({}));
-
-          showToast(`Failed to delete: ${error.message || 'Unknown error'}`);
+          showToast(`Failed to delete: ${err.message || 'Unknown error'}`);
 
         }
 

@@ -335,12 +335,14 @@ body {
 }
 .btn.primary:hover { 
   transform: translateY(-2px); 
-  box-shadow: 0 6px 20px rgba(124, 196, 255, 0.4);
+  box-shadow: 0 6px 20px rgba(124, 196, 255, 0.5);
+  opacity: 1;
+  filter: brightness(1.1);
 }
 .btn.primary:active {
   transform: translateY(0);
 }
-.btn:hover:not(:disabled) { 
+.btn:hover:not(:disabled):not(.primary) { 
   transform: translateY(-2px); 
   box-shadow: 0 4px 12px rgba(124, 196, 255, 0.2);
   border-color: rgba(124, 196, 255, 0.5);
@@ -357,8 +359,9 @@ body {
   border-color: rgba(124, 196, 255, 0.2);
 }
 .btn.ghost:hover {
-  background: rgba(124, 196, 255, 0.08);
-  border-color: rgba(124, 196, 255, 0.4);
+  background: rgba(124, 196, 255, 0.15);
+  border-color: rgba(124, 196, 255, 0.5);
+  opacity: 1;
 }
 .link { background: none; border: none; color: var(--brand-2); cursor: pointer; text-decoration: underline; padding: 0; }
 
@@ -1445,10 +1448,11 @@ body {
   background: rgba(124, 196, 255, 0.3);
 }
 
-.history-item { 
+.history-item {
   display: flex; 
+  flex-direction: column;
   justify-content: space-between; 
-  align-items: center; 
+  align-items: stretch; 
   padding: 12px 16px; 
   margin-bottom: 4px;
   cursor: pointer; 
@@ -1457,6 +1461,14 @@ body {
   border-radius: 8px;
   background: transparent;
   border: none;
+  width: 100%;
+  gap: 8px;
+}
+
+.history-item-content-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   width: 100%;
 }
 
@@ -1468,6 +1480,35 @@ body {
   min-width: 0;
   gap: 12px;
   padding-right: 8px;
+}
+
+.history-delete-progress {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+  display: none;
+}
+
+.history-item.deleting .history-delete-progress {
+  display: block;
+}
+
+.history-delete-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--brand), var(--ok));
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  animation: deletingShimmer 1.5s linear infinite;
+}
+
+@keyframes deletingShimmer {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
 }
 
 .history-item:hover:not(.active) { 
