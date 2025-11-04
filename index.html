@@ -9,21 +9,30 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
 </head>
 <body class="app-layout">
-  <div id="particlesContainer" class="particles-container"></div>
   <div id="historyHoverZone" class="history-hover-zone"></div>
-  <button id="newAnalysisBtnSide" class="new-analysis-fab" type="button" title="Start a new analysis">➕ New Analysis</button>
   <aside id="historyPanel" class="panel glass">
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:8px;">
-      <span class="pill-key" title="History">History</span>
+    <div class="history-header-top">
+      <button class="history-tab-button active">HISTORY</button>
     </div>
-    <div style="padding: 8px 12px; border-bottom: 1px solid var(--border);">
-      <input type="text" id="historySearch" class="history-search-input" placeholder="🔍 Search history..." autocomplete="off">
+    <div class="history-search-container">
+      <div class="history-search-wrapper">
+        <svg class="history-search-icon-inner" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" stroke="url(#searchGradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <defs>
+            <linearGradient id="searchGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#7cc4ff;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:1" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <input type="text" id="historySearch" class="history-search-input" placeholder="Search history..." autocomplete="off">
+      </div>
     </div>
     <ul id="historyList" class="history-list"></ul>
     <div class="storage-footer">
       <div class="storage-row">
-        <span class="tiny muted">Storage</span>
-        <span id="historyStorageText" class="tiny muted">— / 20 GB</span>
+        <span class="storage-label">Storage</span>
+        <span id="historyStorageText" class="storage-text">— / 20 GB</span>
       </div>
       <div class="storage-track">
         <div id="historyStorageBar" class="storage-meter" style="width:0%"></div>
@@ -38,7 +47,9 @@
         <h1>Video Analysis — Powered By NB Media</h1>
         <p class="subtitle muted">Upload or link a video, analyze with your prompt, and validate timestamps in-app.</p>
       </div>
-      <div class="header-actions"></div>
+      <div class="header-actions">
+        <button id="newAnalysisBtn" class="btn primary" type="button" title="Start a new analysis">➕ New Analysis</button>
+      </div>
     </header>
 
     <!-- Main Tabs: Analyze / Results -->
@@ -153,6 +164,7 @@
                     <button class="filter-option btn ghost" data-filter="interrogation" style="width:100%">Interrogation</button>
                     <button class="filter-option btn ghost" data-filter="cctv" style="width:100%">CCTV Footage</button>
                     <button class="filter-option btn ghost" data-filter="body_cam" style="width:100%">Body Cam Footages</button>
+                    <button class="filter-option btn ghost" data-filter="dash_cam" style="width:100%">Dashcam Footage</button>
                   </div>
                 </div>
               </div>
@@ -203,7 +215,11 @@
   <div id="progressModal" class="progress-modal hidden">
     <div class="progress-modal-content glass">
       <button id="closeProgressModal" class="progress-modal-close" aria-label="Close" title="Close">×</button>
-      <div class="progress-spinner"></div>
+      <div class="progress-spinner">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
       <h3 id="progressStatus" class="progress-status-text">Submitting...</h3>
       
       <div class="progress-section">

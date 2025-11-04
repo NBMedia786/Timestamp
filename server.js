@@ -10,9 +10,11 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { lookup as mimeLookup } from 'mime-types';
 import https from 'https';
+import http from 'http';
 import { spawn } from 'child_process';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GoogleAIFileManager } from '@google/generative-ai/server';
+import { lock, unlock } from 'proper-lockfile';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,18 +57,19 @@ TIMESTAMP ANALYSIS (Extract timestamps for these categories):
    - Procedural compliance or violations
    - Important statements or commands
 
-5. INVESTIGATION:
+5. DASHCAM FOOTAGE:
+   - Vehicle-mounted camera recordings
+   - Traffic stops and vehicle pursuits
+   - Road incidents and accidents
+   - Vehicle-related evidence
+   - Dashboard camera captures
+
+6. INVESTIGATION:
    - Evidence discovery and collection
    - Crime scene analysis
    - Witness interviews
    - Key findings or breakthroughs
    - Case development moments
-
-6. INTERROGATION (Additional):
-   - Follow-up questioning sessions
-   - Cross-examinations
-   - Additional confessions or statements
-   - Legal proceedings or hearings
 
 FORMAT:
 METADATA:
@@ -76,8 +79,31 @@ METADATA:
 - Police Department: [extracted agency information]
 
 TIMESTAMPS:
-Format each timestamp as: [MM:SS - MM:SS] - [CATEGORY] - Description. Provide a start and end time for each event.
-Additionally, in the textual label or description, include the range in parentheses after the category, e.g., 911 Call (00:45 - 01:00).
+For each category, you MUST provide a heading with the count of timestamps in that category.
+
+The format MUST be exactly: [Number]. [CATEGORY NAME] ([Count])
+
+Examples:
+1. 911 CALLS (1)
+2. CCTV FOOTAGE (8)
+3. INTERROGATION (6)
+4. BODYCAM FOOTAGE (5)
+5. DASHCAM FOOTAGE (2)
+6. INVESTIGATION (9)
+
+The count in parentheses is REQUIRED and must match the actual number of timestamps you provide for that category.
+
+Format each timestamp entry as: [MM:SS - MM:SS] - [Short Label] - [Full Description]
+Example: [00:45 - 01:00] - Heated argument - A heated argument breaks out between the suspect and officers
+
+The Short Label should be a brief 2-4 word summary (e.g., "Heated argument", "Evidence discovery", "911 call received"). The Full Description provides detailed context.
+
+IMPORTANT REQUIREMENT FOR ALL CATEGORIES:
+You MUST output ALL of the requested categories (911 CALLS, CCTV FOOTAGE, INTERROGATION, BODYCAM FOOTAGE, DASHCAM FOOTAGE, INVESTIGATION) in the TIMESTAMPS section, even if no timestamps are found for a particular category.
+
+For any category where you cannot find any timestamps, you MUST explicitly output the category heading followed by a message like "No 911 CALLS timestamps were found in this video." or "No CCTV FOOTAGE timestamps were found in this video." or "No DASHCAM FOOTAGE timestamps were found in this video." etc.
+
+Do NOT skip any categories. Every requested category must appear in your output, either with timestamps or with a "not found" message.
 
 SUMMARY AND STORYLINE:
 After extracting all timestamps, provide a comprehensive summary that explains:
@@ -105,6 +131,8 @@ app.use(express.urlencoded({ extended: true }));
 // API routes must come BEFORE static file serving to avoid conflicts
 app.post('/api/share', async (req, res) => {
   try {
+    await lock(SHARED_ANALYSES_FILE);
+    
     console.log('Share request received. Body keys:', Object.keys(req.body || {}));
     const { analysisText, videoUrl, fileName } = req.body || {};
     
@@ -165,6 +193,8 @@ app.post('/api/share', async (req, res) => {
   } catch (e) {
     console.error('Error in /api/share:', e);
     res.status(500).json({ message: e?.message || 'Failed to create share link', error: String(e) });
+  } finally {
+    await unlock(SHARED_ANALYSES_FILE);
   }
 });
 
@@ -183,6 +213,16 @@ const CONCURRENCY_LIMIT = 5; // 4-core VPS: allow ~5 concurrent analyses safely
 let activeJobs = 0;
 const jobQueue = [];
 
+function notifyQueuePositions() {
+  // Notify all queued jobs about their current position
+  jobQueue.forEach((job, index) => {
+    const currentPosition = index + activeJobs + 1; // +1 because positions are 1-based
+    try {
+      job.res.write(`[Notice] Queue position updated: ${currentPosition}\n`);
+    } catch {}
+  });
+}
+
 function processQueue() {
   while (activeJobs < CONCURRENCY_LIMIT && jobQueue.length > 0) {
     const job = jobQueue.shift();
@@ -192,7 +232,12 @@ function processQueue() {
     Promise.resolve()
       .then(() => job.run())
       .catch((e) => { try { job.res.write(`\n[Error] ${e?.message || String(e)}\n`); } catch {} })
-      .finally(() => { activeJobs -= 1; processQueue(); });
+      .finally(() => { 
+        activeJobs -= 1; 
+        processQueue();
+        // Notify remaining queued jobs about position changes
+        notifyQueuePositions();
+      });
   }
 }
 
@@ -202,6 +247,8 @@ function enqueueJob(run, res) {
   const position = jobQueue.length + activeJobs + 1; // +1 for this job we're about to add
   jobQueue.push({ run, res });
   processQueue();
+  // Notify all queued jobs (including this one) about their positions
+  notifyQueuePositions();
   return position;
 }
 
@@ -277,9 +324,14 @@ async function computeUsedBytes(items) {
   return used;
 }
 
-// Keep-alive agent for outgoing HTTPS
-import http from 'http';
-const keepAliveAgent = new https.Agent({ keepAlive: true, maxSockets: 50 });
+// Keep-alive agent for outgoing HTTPS with improved timeout settings
+const keepAliveAgent = new https.Agent({ 
+  keepAlive: true, 
+  maxSockets: 50,
+  keepAliveMsecs: 1000,
+  timeout: 60000, // 60 second timeout
+  freeSocketTimeout: 4000
+});
 
 // Temp upload dir
 const uploadDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'uploads-'));
@@ -496,6 +548,34 @@ function isTransientError(err) {
   );
 }
 
+async function uploadFileWithRetry(fileManager, localPath, options, { attempts = 3, initialDelayMs = 3000, onRetry = () => {} } = {}) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const uploaded = await fileManager.uploadFile(localPath, options);
+      return uploaded;
+    } catch (err) {
+      lastErr = err;
+      const msg = (err?.message || '').toLowerCase();
+      const isNetworkError = msg.includes('fetch failed') || 
+                            msg.includes('econnreset') || 
+                            msg.includes('etimedout') || 
+                            msg.includes('econnrefused') ||
+                            msg.includes('network') ||
+                            msg.includes('connection');
+      
+      if (i < attempts && (isTransientError(err) || isNetworkError)) {
+        const delay = initialDelayMs * Math.pow(2, i - 1);
+        await onRetry(i + 1, delay, err);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 async function streamWithRetry(model, request, { attempts = 3, initialDelayMs = 2000, onRetry = () => {} } = {}) {
   let lastErr;
   for (let i = 1; i <= attempts; i++) {
@@ -589,14 +669,34 @@ app.post('/upload', (req, res) => {
           res.write('Download complete.\n');
         }
 
-        // 2) Upload to Gemini
+        // 2) Upload to Gemini with retry logic
         const mimeType = getMimeType(localPath);
         res.write('Uploading video to Gemini File API…\n');
 
-        uploaded = await fileManager.uploadFile(localPath, {
-          mimeType,
-          displayName: path.basename(localPath),
-        });
+        try {
+          uploaded = await uploadFileWithRetry(
+            fileManager,
+            localPath,
+            {
+              mimeType,
+              displayName: path.basename(localPath),
+            },
+            {
+              attempts: 3,
+              initialDelayMs: 3000,
+              onRetry: async (nextAttempt, delayMs, e) => {
+                const errorMsg = e?.message || String(e);
+                res.write(`\n[Notice] Upload error (${errorMsg.includes('fetch failed') ? 'network issue' : errorMsg}). Retrying attempt ${nextAttempt} in ${Math.round(delayMs/1000)}s…\n`);
+              }
+            }
+          );
+        } catch (uploadErr) {
+          const errorMsg = uploadErr?.message || String(uploadErr);
+          if (errorMsg.includes('fetch failed') || errorMsg.includes('network')) {
+            throw new Error('Failed to connect to Gemini API. Please check your internet connection and API key. If the problem persists, it may be a temporary Google API issue. Error: ' + errorMsg);
+          }
+          throw uploadErr;
+        }
 
         if (!uploaded?.file?.name) throw new Error('Failed to upload file to Gemini.');
 
@@ -638,6 +738,34 @@ app.post('/upload', (req, res) => {
           const text = chunk?.text?.() || '';
           if (text) res.write(text);
         }
+        
+        // --- Move local file to permanent storage before finalizing ---
+        let savedUrl = null;
+        if (hasFile && localPath) {
+          try {
+            const newName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${path.extname(localPath) || '.bin'}`;
+            const newPath = path.join(SHARED_DIR, newName);
+            
+            // Move the file instead of re-uploading
+            await fsp.rename(localPath, newPath);
+            
+            // Create the relative URL to send to the client
+            savedUrl = `/shared/${encodeURIComponent(newName)}`;
+            
+            // Send a special notice to the client
+            res.write(`\n[Notice] File saved to: ${savedUrl}\n`);
+            
+            // VERY IMPORTANT: Prevent the 'finally' block from deleting this file
+            cleanupPath = null;
+            
+            console.log('Moved temp file to permanent storage:', newPath);
+          } catch (moveErr) {
+            console.error('Failed to move temp file:', moveErr);
+            res.write(`\n[Error] Failed to save video file to history: ${moveErr.message}\n`);
+          }
+        }
+        // --- END OF NEW CODE ---
+        
         res.write('\n');
       } catch (e) {
         const msg = e?.message || String(e);
@@ -748,6 +876,8 @@ app.get('/api/history/storage', async (req, res) => {
 
 app.post('/api/history', async (req, res) => {
   try {
+    await lock(HISTORY_FILE);
+    
     const { name, analysisText, videoUrl, fileName } = req.body || {};
     if (!analysisText || !name) return res.status(400).json({ message: 'Missing name or analysisText' });
     const items = await readHistory();
@@ -771,11 +901,15 @@ app.post('/api/history', async (req, res) => {
     res.status(201).json(newItem);
   } catch (e) {
     res.status(500).json({ message: e?.message || 'Failed to save history' });
+  } finally {
+    await unlock(HISTORY_FILE);
   }
 });
 
 app.put('/api/history/:id', async (req, res) => {
   try {
+    await lock(HISTORY_FILE);
+    
     const { id } = req.params;
     const { name } = req.body || {};
     const items = await readHistory();
@@ -784,11 +918,18 @@ app.put('/api/history/:id', async (req, res) => {
     if (name && name.trim()) it.name = name.trim();
     await writeHistory(items);
     res.json(it);
-  } catch (e) { res.status(500).json({ message: e?.message || 'Failed to update' }); }
+  } catch (e) { 
+    res.status(500).json({ message: e?.message || 'Failed to update' }); 
+  } finally {
+    await unlock(HISTORY_FILE);
+  }
 });
 
 app.delete('/api/history/:id', async (req, res) => {
   try {
+    await lock(HISTORY_FILE);
+    await lock(SHARED_ANALYSES_FILE);
+    
     const { id } = req.params;
     let items = await readHistory();
     const item = items.find(x => x.id === id);
@@ -869,6 +1010,9 @@ app.delete('/api/history/:id', async (req, res) => {
   } catch (e) { 
     console.error('Delete error:', e);
     res.status(500).json({ message: e?.message || 'Failed to delete' }); 
+  } finally {
+    await unlock(SHARED_ANALYSES_FILE);
+    await unlock(HISTORY_FILE);
   }
 });
 
