@@ -25,7 +25,7 @@ const DEFAULT_PROMPT = `Analyze this video and extract the following information
 METADATA EXTRACTION (Extract from any visible text, audio, or context):
 - DATE: Any dates, times, or timestamps visible or mentioned
 - ADDRESS/LOCATION: Street addresses, building names, landmarks, or location references
-- CITY/STATE/COUNTY: Geographic location information
+- CITY/STATE/COUNTY: Geographic location information. If the County is not explicitly mentioned in the video, use your internal knowledge to determine the correct county based on the extracted City and State.
 - POLICE DEPARTMENT: Agency names, officer badges, department identifiers, or jurisdiction
 
 TIMESTAMP ANALYSIS (Extract timestamps for these categories):
@@ -497,7 +497,15 @@ async function downloadYouTube(url) {
 
   const outBase = path.join(os.tmpdir(), `yt-${Date.now()}`);
   const outTpl = `${outBase}.%(ext)s`;
-  const args = [ url, ...ytFormatArgs(ff.ok), '-o', outTpl ];
+  const args = [ url, ...ytFormatArgs(ff.ok), '-o', outTpl, '-4' ];
+
+  // --- START COOKIE SUPPORT ---
+  const COOKIES_PATH = path.join(__dirname, 'cookies.txt');
+  if (fs.existsSync(COOKIES_PATH)) {
+    console.log('Using cookies.txt for YouTube download...');
+    args.push('--cookies', COOKIES_PATH);
+  }
+  // --- END COOKIE SUPPORT ---
 
   // Retry around EBUSY or transient spawn issues (common on Windows with AV scanners)
   let lastErr;
@@ -657,10 +665,29 @@ app.post('/upload', (req, res) => {
         if (hasFile) {
           localPath = req.file.path;
           cleanupPath = localPath;
+          
+          // --- START ETA FOR LOCAL FILE ---
+          try {
+            const fileSize = req.file.size;
+            // Logic: 90s base + 2.0s per MB (conservative estimate for user uploads)
+            const etaSeconds = 90 + Math.floor(fileSize / (1024 * 1024) * 2.0);
+            res.write(`\n[Notice] ETA: ${etaSeconds}\n`);
+          } catch (e) { console.warn('Could not calculate ETA for local file'); }
+          // --- END ETA ---
         } else {
           res.write('Downloading YouTube video…\n');
           try {
             localPath = await downloadYouTube(url);
+            
+            // --- START ETA FOR YOUTUBE FILE ---
+            try {
+              const stats = await fsp.stat(localPath);
+              const fileSize = stats.size;
+              // Logic: 90s base + 0.2s per MB (faster estimate for YouTube downloads)
+              const etaSeconds = 90 + Math.floor(fileSize / (1024 * 1024) * 0.2);
+              res.write(`\n[Notice] ETA: ${etaSeconds}\n`);
+            } catch (e) { console.warn('Could not calculate ETA for YouTube file'); }
+            // --- END ETA ---
           } catch (e) {
             const msg = e?.message || String(e);
             if (/ffmpeg/i.test(msg)) {

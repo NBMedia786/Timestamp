@@ -98,6 +98,8 @@ const TOTAL_STORAGE_BYTES = 20 * 1024 * 1024 * 1024; // 20 GB
 
 let uploadTriggered = false;
 
+let etaTimer = null;
+
 
 
 // Tab functionality (results inner tabs)
@@ -603,6 +605,11 @@ function setUpload(pct, label) {
       currentCheckpoint = null;
 
       updateCheckpointProgress(0);
+      
+      // Clear ETA timer
+      if (etaTimer) clearInterval(etaTimer);
+      const etaEl = document.getElementById('progressETA');
+      if (etaEl) etaEl.style.display = 'none';
 
     }, 300);
 
@@ -696,6 +703,38 @@ function parseServerLine(line) {
     savedVideoPath = path;
     console.log('Server has pre-saved the video to:', savedVideoPath);
     return; // Don't log this to the user's console
+  }
+
+  // Handle ETA notice
+  if (originalLine.startsWith('[Notice] ETA:')) {
+    try {
+      const totalSeconds = parseInt(originalLine.split(': ')[1].trim(), 10);
+      if (totalSeconds > 0) {
+        const etaEl = document.getElementById('progressETA');
+        const startTime = Date.now();
+        if (etaTimer) clearInterval(etaTimer);
+
+        const updateTimer = () => {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          const remaining = totalSeconds - elapsed;
+
+          if (remaining <= 0) {
+            if(etaEl) etaEl.textContent = 'Finishing up...';
+            clearInterval(etaTimer);
+            etaTimer = null;
+          } else {
+            const minutes = Math.floor(remaining / 60);
+            const seconds = remaining % 60;
+            if(etaEl) etaEl.textContent = `Estimated time remaining: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+          }
+        };
+
+        updateTimer(); // Run once immediately
+        if(etaEl) etaEl.style.display = 'block';
+        etaTimer = setInterval(updateTimer, 1000);
+      }
+    } catch (e) { console.warn('Could not parse ETA', e); }
+    return; // Don't log this to the console
   }
 
   // Handle queue position messages specifically (both initial and updated positions)
@@ -1270,6 +1309,11 @@ async function handleSubmit(e) {
   // Reset saved video path for each new analysis
   savedVideoPath = null;
   
+  // Reset ETA timer
+  if (etaTimer) clearInterval(etaTimer);
+  const etaEl = document.getElementById('progressETA');
+  if (etaEl) etaEl.style.display = 'none';
+  
   console.log('Submit button clicked - handleSubmit called');
 
   
@@ -1824,6 +1868,11 @@ async function performAnalysis(prompt, url, file) {
         console.log('Stream finished (done = true)');
 
         if (activityTimer) clearInterval(activityTimer);
+        
+        // Clear ETA timer
+        if (etaTimer) clearInterval(etaTimer);
+        const etaEl = document.getElementById('progressETA');
+        if (etaEl) etaEl.textContent = 'Finishing up...';
 
         break;
 
@@ -2137,9 +2186,12 @@ async function performAnalysis(prompt, url, file) {
     clearInterval(softTimer);
 
     if (activityTimer) clearInterval(activityTimer);
+    
+    // Clear ETA timer
+    if (etaTimer) clearInterval(etaTimer);
 
     
-    
+
     // Don't reset UI if this is a network error (will be retried by outer handler)
 
     const errorMsg = err.message || 'Unknown error occurred';
