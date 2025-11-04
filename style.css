@@ -597,6 +597,8 @@ body {
   user-select: none;
   transition: all 0.2s ease;
   text-align: left;
+  overflow: visible;
+  min-width: 0;
 }
 
 .timestamp-category-title:hover {
@@ -614,6 +616,10 @@ body {
 
 .category-name {
   flex: 1;
+  white-space: normal;
+  overflow: visible;
+  word-wrap: break-word;
+  line-height: 1.4;
 }
 
 /* Card Grid Styles */
@@ -1317,7 +1323,7 @@ body {
   z-index: 2;
 }
 
-/* History panel - hidden by default, shown on hover */
+/* History panel - hidden by default, shown when button is clicked */
 #historyPanel { 
   height: 100vh; 
   overflow: hidden;
@@ -1335,6 +1341,10 @@ body {
   transition: transform 0.3s ease-in-out;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
   padding: 0;
+}
+
+#historyPanel.visible {
+  transform: translateX(0);
 }
 
 /* History Header Top */
@@ -1386,25 +1396,6 @@ body {
   filter: drop-shadow(0 0 2px rgba(124, 196, 255, 0.3));
 }
 
-/* Hover zone on left edge - invisible trigger area */
-.history-hover-zone {
-  position: fixed;
-  left: 0;
-  top: 0;
-  width: 30px;
-  height: 100vh;
-  z-index: 100;
-  background: transparent;
-  pointer-events: auto;
-}
-
-
-
-/* Show panel when hovering over hover zone or panel itself */
-.history-hover-zone:hover ~ #historyPanel,
-#historyPanel:hover {
-  transform: translateX(0);
-}
 .history-search-input {
   width: 100%;
   padding: 8px 12px 8px 36px;

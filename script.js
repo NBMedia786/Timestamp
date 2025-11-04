@@ -78,6 +78,12 @@ const newAnalysisBtn = document.getElementById('newAnalysisBtn');
 
 // History panel elements
 
+const historyBtn = document.getElementById('historyBtn');
+
+const historyPanel = document.getElementById('historyPanel');
+
+const closeHistoryBtn = document.getElementById('closeHistoryBtn');
+
 const historyList = document.getElementById('historyList');
 
 const historySearch = document.getElementById('historySearch');
@@ -902,6 +908,22 @@ if (videoInput) {
         return;
       }
       
+      // Validate file size (2GB limit)
+      const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB in bytes
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeGB = (file.size / (1024 * 1024 * 1024)).toFixed(2);
+        console.warn('File too large:', file.name, sizeGB, 'GB');
+        showToast(`File size (${sizeGB} GB) exceeds the 2 GB limit. Please select a smaller file.`);
+        videoInput.value = ''; // Clear the input
+        currentVideoFile = null;
+        currentVideoFileName = null;
+        if (fileInfo) {
+          fileInfo.textContent = '';
+          fileInfo.classList.add('hidden');
+        }
+        return;
+      }
+      
       console.log('File selected:', file.name, file.size, file.type);
 
       // Store file reference for upload and history
@@ -994,9 +1016,25 @@ dropZone.addEventListener('drop', (e) => {
 
       const file = dt.files[0];
 
-      if (fileInfo) {
+      // Validate file type
+      if (!file.type.startsWith('video/')) {
+        console.warn('Invalid file type:', file.type);
+        showToast('Please select a video file.');
+        return;
+      }
 
-        fileInfo.textContent = `Selected file: ${file.name}`;
+      // Validate file size (2GB limit)
+      const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB in bytes
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeGB = (file.size / (1024 * 1024 * 1024)).toFixed(2);
+        console.warn('File too large:', file.name, sizeGB, 'GB');
+        showToast(`File size (${sizeGB} GB) exceeds the 2 GB limit. Please select a smaller file.`);
+        return;
+      }
+
+      if (fileInfo) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        fileInfo.textContent = `Selected file: ${file.name} (${sizeMB} MB)`;
 
         fileInfo.classList.remove('hidden');
 
@@ -1244,6 +1282,16 @@ async function handleSubmit(e) {
   const file = (videoInput.files && videoInput.files[0]) || currentVideoFile;
 
   
+  // Validate file size before submitting (2GB limit)
+  if (file) {
+    const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB in bytes
+    if (file.size > MAX_FILE_SIZE) {
+      const sizeGB = (file.size / (1024 * 1024 * 1024)).toFixed(2);
+      showToast(`File size (${sizeGB} GB) exceeds the 2 GB limit. Please select a smaller file.`);
+      setUpload(0, 'Idle');
+      return;
+    }
+  }
   
   // Save file reference and prompt for history saving later
 
@@ -2368,6 +2416,8 @@ function filterLabel(val) {
 
     case 'interrogation': return 'Interrogation';
 
+    case 'interview': return 'Interview';
+
     case 'cctv': return 'CCTV';
 
     case 'body_cam': return 'Body Cam';
@@ -2409,6 +2459,12 @@ function passesFilter(category) {
   if (activeTsFilter === 'interrogation') {
 
     return /interrogation|interrogat/.test(c);
+
+  }
+
+  if (activeTsFilter === 'interview') {
+
+    return /interview|interviewing|interview\s*session/.test(c);
 
   }
 
@@ -3625,74 +3681,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   
   
-  // History panel hover functionality
+  // History panel button functionality
 
-  const historyHoverZone = document.getElementById('historyHoverZone');
-
-  const historyPanel = document.getElementById('historyPanel');
-
-  let hoverTimeout = null;
-
-  
-  
-  if (historyHoverZone && historyPanel) {
+  if (historyBtn && historyPanel) {
     
-    // Show panel when mouse enters hover zone
-
-    historyHoverZone.addEventListener('mouseenter', () => {
-
-      if (hoverTimeout) clearTimeout(hoverTimeout);
-
-      historyPanel.style.transform = 'translateX(0)';
-
+    // Toggle panel visibility on button click
+    historyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      historyPanel.classList.toggle('visible');
     });
 
-    
-    
-    // Keep panel visible when hovering over it
+    // Close panel with close button
+    if (closeHistoryBtn) {
+      closeHistoryBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        historyPanel.classList.remove('visible');
+      });
+    }
 
-    historyPanel.addEventListener('mouseenter', () => {
-
-      if (hoverTimeout) clearTimeout(hoverTimeout);
-
-      historyPanel.style.transform = 'translateX(0)';
-
-    });
-
-    
-    
-    // Hide panel with slight delay when mouse leaves
-
-    historyPanel.addEventListener('mouseleave', () => {
-
-      hoverTimeout = setTimeout(() => {
-
-        historyPanel.style.transform = 'translateX(-100%)';
-
-      }, 200);
-
-    });
-
-    
-    
-    // Also hide when leaving hover zone (if not entering panel)
-
-    historyHoverZone.addEventListener('mouseleave', (e) => {
-
-      // Check if mouse is moving to panel
-
-      const relatedTarget = e.relatedTarget;
-
-      if (!relatedTarget || !historyPanel.contains(relatedTarget)) {
-
-        hoverTimeout = setTimeout(() => {
-
-          historyPanel.style.transform = 'translateX(-100%)';
-
-        }, 200);
-
+    // Close panel when clicking outside of it
+    document.addEventListener('click', (e) => {
+      // Don't close if clicking the history button or inside the panel
+      if (historyPanel.classList.contains('visible')) {
+        if (!historyPanel.contains(e.target) && e.target !== historyBtn && !historyBtn.contains(e.target)) {
+          historyPanel.classList.remove('visible');
+        }
       }
+    });
 
+    // Prevent panel from closing when clicking inside it
+    historyPanel.addEventListener('click', (e) => {
+      e.stopPropagation();
     });
     
   }

@@ -3,16 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Video Analysis — Powered By NB Media</title>
+  <title>TimeStamps Extractor — Powered By NB Media</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
 </head>
 <body class="app-layout">
-  <div id="historyHoverZone" class="history-hover-zone"></div>
   <aside id="historyPanel" class="panel glass">
     <div class="history-header-top">
-      <button class="history-tab-button active">HISTORY</button>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <button class="history-tab-button active">HISTORY</button>
+        <button id="closeHistoryBtn" class="btn ghost" type="button" title="Close history" style="padding: 4px 8px; font-size: 18px; min-width: auto;">×</button>
+      </div>
     </div>
     <div class="history-search-container">
       <div class="history-search-wrapper">
@@ -44,10 +46,11 @@
     <div class="container">
     <header class="header animate-pop">
       <div class="title-wrap">
-        <h1>Video Analysis — Powered By NB Media</h1>
+        <h1>TimeStamps Extractor — Powered By NB Media</h1>
         <p class="subtitle muted">Upload or link a video, analyze with your prompt, and validate timestamps in-app.</p>
       </div>
       <div class="header-actions">
+        <button id="historyBtn" class="btn ghost" type="button" title="View history">📜 History</button>
         <button id="newAnalysisBtn" class="btn primary" type="button" title="Start a new analysis">➕ New Analysis</button>
       </div>
     </header>
@@ -79,7 +82,7 @@
               <div class="dz-icon">🎬</div>
               <div>
                 <div class="dz-title">Drag & drop a video</div>
-                <div class="dz-sub">or <button id="browseBtn" type="button" class="link">browse</button></div>
+                <div class="dz-sub">or <button id="browseBtn" type="button" class="link">browse</button> <span class="muted tiny">(max 2 GB)</span></div>
               </div>
             </div>
             <div id="fileInfo" class="dz-file hidden"></div>
@@ -162,6 +165,7 @@
                     <button class="filter-option btn ghost" data-filter="911_call" style="width:100%">911 Call</button>
                     <button class="filter-option btn ghost" data-filter="investigation" style="width:100%">Investigation</button>
                     <button class="filter-option btn ghost" data-filter="interrogation" style="width:100%">Interrogation</button>
+                    <button class="filter-option btn ghost" data-filter="interview" style="width:100%">Interview</button>
                     <button class="filter-option btn ghost" data-filter="cctv" style="width:100%">CCTV Footage</button>
                     <button class="filter-option btn ghost" data-filter="body_cam" style="width:100%">Body Cam Footages</button>
                     <button class="filter-option btn ghost" data-filter="dash_cam" style="width:100%">Dashcam Footage</button>

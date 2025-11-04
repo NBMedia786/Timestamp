@@ -50,21 +50,29 @@ TIMESTAMP ANALYSIS (Extract timestamps for these categories):
    - Important statements or testimony
    - Emotional reactions during questioning
 
-4. BODYCAM FOOTAGE:
+4. INTERVIEW:
+   - Formal interviews or conversations
+   - Witness interviews
+   - Media interviews
+   - Job interviews or professional discussions
+   - Interview sessions with key individuals
+   - Q&A sessions or discussions
+
+5. BODYCAM FOOTAGE:
    - Police officer interactions with civilians
    - Use of force incidents
    - Evidence collection moments
    - Procedural compliance or violations
    - Important statements or commands
 
-5. DASHCAM FOOTAGE:
+6. DASHCAM FOOTAGE:
    - Vehicle-mounted camera recordings
    - Traffic stops and vehicle pursuits
    - Road incidents and accidents
    - Vehicle-related evidence
    - Dashboard camera captures
 
-6. INVESTIGATION:
+7. INVESTIGATION:
    - Evidence discovery and collection
    - Crime scene analysis
    - Witness interviews
@@ -87,9 +95,10 @@ Examples:
 1. 911 CALLS (1)
 2. CCTV FOOTAGE (8)
 3. INTERROGATION (6)
-4. BODYCAM FOOTAGE (5)
-5. DASHCAM FOOTAGE (2)
-6. INVESTIGATION (9)
+4. INTERVIEW (4)
+5. BODYCAM FOOTAGE (5)
+6. DASHCAM FOOTAGE (2)
+7. INVESTIGATION (9)
 
 The count in parentheses is REQUIRED and must match the actual number of timestamps you provide for that category.
 
@@ -99,9 +108,9 @@ Example: [00:45 - 01:00] - Heated argument - A heated argument breaks out betwee
 The Short Label should be a brief 2-4 word summary (e.g., "Heated argument", "Evidence discovery", "911 call received"). The Full Description provides detailed context.
 
 IMPORTANT REQUIREMENT FOR ALL CATEGORIES:
-You MUST output ALL of the requested categories (911 CALLS, CCTV FOOTAGE, INTERROGATION, BODYCAM FOOTAGE, DASHCAM FOOTAGE, INVESTIGATION) in the TIMESTAMPS section, even if no timestamps are found for a particular category.
+You MUST output ALL of the requested categories (911 CALLS, CCTV FOOTAGE, INTERROGATION, INTERVIEW, BODYCAM FOOTAGE, DASHCAM FOOTAGE, INVESTIGATION) in the TIMESTAMPS section, even if no timestamps are found for a particular category.
 
-For any category where you cannot find any timestamps, you MUST explicitly output the category heading followed by a message like "No 911 CALLS timestamps were found in this video." or "No CCTV FOOTAGE timestamps were found in this video." or "No DASHCAM FOOTAGE timestamps were found in this video." etc.
+For any category where you cannot find any timestamps, you MUST explicitly output the category heading followed by a message like "No 911 CALLS timestamps were found in this video." or "No CCTV FOOTAGE timestamps were found in this video." or "No INTERVIEW timestamps were found in this video." or "No DASHCAM FOOTAGE timestamps were found in this video." etc.
 
 Do NOT skip any categories. Every requested category must appear in your output, either with timestamps or with a "not found" message.
 
