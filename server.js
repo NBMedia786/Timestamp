@@ -14,7 +14,13 @@ import http from 'http';
 import { spawn } from 'child_process';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GoogleAIFileManager } from '@google/generative-ai/server';
-import { lock, unlock } from 'proper-lockfile';
+import session from 'express-session';
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { randomBytes } from 'crypto';
+import Database from 'better-sqlite3';
+import helmet from 'helmet';
+import ConnectSqlite3 from 'connect-sqlite3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -132,16 +138,239 @@ if (!GEMINI_API_KEY) {
   process.exit(1);
 }
 
+// Initialize DATA_DIR early (before session middleware)
+const DATA_DIR = path.join(__dirname, 'data');
+await fsp.mkdir(DATA_DIR, { recursive: true });
+
+// Initialize SQLite session store (needed for session middleware)
+const SQLiteStore = ConnectSqlite3(session);
+
 const app = express();
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      frameSrc: ["'self'", "https://www.youtube.com"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// API routes must come BEFORE static file serving to avoid conflicts
-app.post('/api/share', async (req, res) => {
+// --- SESSION & PASSPORT (with Persistent SQLite Store) ---
+app.use(session({
+  store: new SQLiteStore({
+    db: 'app.db', // Use your existing database file
+    dir: DATA_DIR, // Specify the directory where the DB is located
+    table: 'sessions', // The table to store sessions in
+    concurrentDB: true // Use the same DB connection as the app
+  }),
+  secret: process.env.SESSION_SECRET || randomBytes(32).toString('hex'), // Use a persistent secret from .env
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // Use true for HTTPS
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7-day session
+  }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// --- PASSPORT CONFIG ---
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: `${process.env.APP_BASE_URL}/auth/google/callback`,
+    passReqToCallback: true
+  },
+  (req, accessToken, refreshToken, profile, done) => {
+    try {
+      const email = profile.emails[0].value;
+
+      // --- NEW SECURITY CHECK ---
+      // Get admin emails from .env
+      const adminEmailList = (process.env.ADMIN_EMAILS || '')
+        .split(',')
+        .map(e => e.trim().toLowerCase())
+        .filter(e => e.length > 0);
+
+      const emailLower = email.toLowerCase();
+      const isDomainUser = emailLower.endsWith('@nbmediaproductions.com');
+      const isSuperAdmin = adminEmailList.includes(emailLower);
+
+      // **YOUR NEW CUSTOM SECURITY CHECK**
+      // User must be EITHER a domain user OR a super admin to log in
+      if (!isDomainUser && !isSuperAdmin) {
+        return done(null, false, { message: 'This account is not authorized.' });
+      }
+      // --- END NEW SECURITY CHECK ---
+
+      const { id: google_id, displayName: display_name } = profile;
+
+      // Use a transaction for safety
+      const transaction = db.transaction(() => {
+        // Find or create the user
+        let user = db.prepare('SELECT * FROM users WHERE google_id = ?').get(google_id);
+
+        if (user) {
+          // User exists, update their name just in case
+          db.prepare('UPDATE users SET display_name = ?, email = ? WHERE google_id = ?')
+            .run(display_name, email, google_id);
+        } else {
+          // New user, create them
+          db.prepare('INSERT INTO users (google_id, email, display_name) VALUES (?, ?, ?)')
+            .run(google_id, email, display_name);
+        }
+
+        // **Log this login event for the dashboard**
+        db.prepare('INSERT INTO login_logs (user_google_id) VALUES (?)').run(google_id);
+
+        // Get the final user data to pass to the session
+        return db.prepare('SELECT * FROM users WHERE google_id = ?').get(google_id);
+      });
+
+      // Execute transaction and get user
+      const user = transaction();
+      done(null, user);
+
+    } catch (err) {
+      return done(err, null);
+    }
+  }
+));
+
+// Tell passport how to "remember" a user (store only the ID)
+passport.serializeUser((user, done) => {
+  done(null, user.google_id);
+});
+
+// Tell passport how to "find" a user from the session ID
+passport.deserializeUser((google_id, done) => {
   try {
-    await lock(SHARED_ANALYSES_FILE);
-    
+    const user = db.prepare('SELECT * FROM users WHERE google_id = ?').get(google_id);
+    done(null, user || false);
+  } catch (err) {
+    done(err, null);
+  }
+});
+
+// --- GATEKEEPER MIDDLEWARE ---
+const checkAuth = (req, res, next) => {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect('/login');
+};
+
+// --- ADMIN GATEKEEPER ---
+const checkAdmin = (req, res, next) => {
+  // Get admin emails from .env
+  const adminEmailList = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(e => e.length > 0);
+
+  const userEmail = req.user?.email?.toLowerCase();
+
+  // User is allowed if they are logged in AND their email is in the admin list
+  if (req.isAuthenticated() && userEmail && adminEmailList.includes(userEmail)) {
+    return next();
+  }
+  
+  // Not an admin, send them to the main app
+  res.redirect('/');
+};
+
+// --- ADMIN SECRET CHECK (for API endpoints) ---
+const checkAdminSecret = (req, res, next) => {
+  const adminSecret = process.env.ADMIN_SECRET;
+  const providedSecret = req.headers['x-admin-secret'] || req.query.secret;
+
+  // If ADMIN_SECRET is set, require it for API access
+  if (adminSecret) {
+    if (!providedSecret || providedSecret !== adminSecret) {
+      return res.status(403).json({ 
+        error: 'Unauthorized',
+        message: 'Admin secret required' 
+      });
+    }
+  }
+
+  // Also check authentication (for dashboard access)
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ 
+      error: 'Unauthenticated',
+      message: 'Authentication required' 
+    });
+  }
+
+  // Check admin email list
+  const adminEmailList = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(e => e.length > 0);
+
+  const userEmail = req.user?.email?.toLowerCase();
+
+  if (!userEmail || !adminEmailList.includes(userEmail)) {
+    return res.status(403).json({ 
+      error: 'Forbidden',
+      message: 'Admin access required' 
+    });
+  }
+
+  next();
+};
+
+// --- AUTH ROUTES ---
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+app.get('/auth/google/callback', 
+  passport.authenticate('google', {
+    failureRedirect: '/login?error=' + encodeURIComponent('Authentication failed. Only @nbmediaproductions.com users are allowed.'),
+    failureMessage: true
+  }),
+  (req, res) => {
+    res.redirect('/');
+  }
+);
+
+app.post('/logout', (req, res, next) => {
+  req.logout((err) => {
+    if (err) { return next(err); }
+    req.session.destroy(() => {
+      res.redirect('/login');
+    });
+  });
+});
+
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+app.get('/admin', checkAuth, checkAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+// --- END AUTH ROUTES ---
+
+// API routes must come BEFORE static file serving to avoid conflicts
+app.post('/api/share', checkAuth, async (req, res) => {
+  try {
     console.log('Share request received. Body keys:', Object.keys(req.body || {}));
     const { analysisText, videoUrl, fileName } = req.body || {};
     
@@ -202,13 +431,11 @@ app.post('/api/share', async (req, res) => {
   } catch (e) {
     console.error('Error in /api/share:', e);
     res.status(500).json({ message: e?.message || 'Failed to create share link', error: String(e) });
-  } finally {
-    await unlock(SHARED_ANALYSES_FILE);
   }
 });
 
 // Serve static files from project root (moved from /public)
-app.use(express.static(__dirname));
+app.use(express.static(__dirname, { index: false }));
 
 // Shared files directory for linkable local video uploads
 const SHARED_DIR = path.join(__dirname, 'shared');
@@ -262,27 +489,56 @@ function enqueueJob(run, res) {
 }
 
 // Simple server-side history store (JSON) with 20GB quota
-const DATA_DIR = path.join(__dirname, 'data');
-await fsp.mkdir(DATA_DIR, { recursive: true });
-const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
-const SHARED_ANALYSES_FILE = path.join(DATA_DIR, 'shared_analyses.json');
+// DATA_DIR is already defined above (before session middleware)
+
+// --- DATABASE INITIALIZATION ---
+console.log('Opening database connection...');
+const DB_PATH = path.join(DATA_DIR, 'app.db');
+const db = new Database(DB_PATH);
+
+// Enable WAL mode for better concurrency (important!)
+db.pragma('journal_mode = WAL');
+
+// Create tables IF THEY DON'T EXIST (safe to run every time)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    google_id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    display_name TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS login_logs (
+    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_google_id TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_google_id) REFERENCES users (google_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS analysis_jobs (
+    job_id TEXT PRIMARY KEY,
+    user_google_id TEXT,
+    analyzed_by_name TEXT,
+    job_name TEXT,
+    analysis_text TEXT,
+    video_url TEXT,
+    file_name TEXT,
+    created_at DATETIME,
+    status TEXT NOT NULL DEFAULT 'completed',
+    time_taken_ms INTEGER,
+    error_message TEXT,
+    FOREIGN KEY (user_google_id) REFERENCES users (google_id)
+  );
+`);
+
+console.log('Database connection open and tables verified.');
+// --- END DATABASE INITIALIZATION ---
+
 const TOTAL_STORAGE_BYTES = 20 * 1024 * 1024 * 1024; // 20GB
 
-async function readHistory() {
-  try {
-    const buf = await fsp.readFile(HISTORY_FILE);
-    const arr = JSON.parse(buf.toString());
-    return Array.isArray(arr) ? arr : [];
-  } catch {
-    return [];
-  }
-}
+// Shared analyses storage (still needed for share functionality)
+const SHARED_ANALYSES_FILE = path.join(DATA_DIR, 'shared_analyses.json');
 
-async function writeHistory(items) {
-  await fsp.writeFile(HISTORY_FILE, JSON.stringify(items, null, 2));
-}
-
-// Shared analyses storage
 async function readSharedAnalyses() {
   try {
     const buf = await fsp.readFile(SHARED_ANALYSES_FILE);
@@ -306,31 +562,60 @@ function generateShareId() {
   return shareId;
 }
 
-async function getFileSizeBytesFromShared(urlOrPath) {
-  try {
-    if (!urlOrPath) return 0;
-    // Expecting /shared/<filename>
-    let pathname = '';
-    try { pathname = new URL(urlOrPath, 'http://localhost').pathname; } catch { pathname = urlOrPath; }
-    if (!pathname.startsWith('/shared/')) return 0;
-    const name = decodeURIComponent(pathname.replace('/shared/', ''));
-    const filePath = path.join(SHARED_DIR, name);
-    const st = await fsp.stat(filePath);
-    return st.size || 0;
-  } catch { return 0; }
-}
-
 function textSizeBytes(text) {
   try { return Buffer.byteLength(text || '', 'utf8'); } catch { return 0; }
 }
 
-async function computeUsedBytes(items) {
-  let used = 0;
-  for (const it of (items || [])) {
-    used += textSizeBytes(it.analysisText);
-    if (it.videoUrl) used += await getFileSizeBytesFromShared(it.videoUrl);
+function extractTitle(analysisText, promptText, fileName, url) {
+  // --- Priority 1: Filename (for file uploads) ---
+  if (fileName) {
+    const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+    if (nameWithoutExt && nameWithoutExt.length > 0) {
+      // Return the full original name without truncating
+      return nameWithoutExt;
+    }
   }
-  return used;
+
+  // --- Priority 2: YouTube URL (This was the missing piece) ---
+  if (url && (url.includes('youtube.com') || url.includes('youtu.be'))) {
+    // Try to get the video ID as a simple name
+    const videoIdMatch = url.match(/[?&]v=([^&]+)/) || url.match(/youtu\.be\/([^?&]+)/);
+    if (videoIdMatch && videoIdMatch[1]) {
+      // Use a simple, clean name like "YouTube (abc123xyz)"
+      return `YouTube Video (${videoIdMatch[1].substring(0, 11)})`;
+    }
+    return `YouTube Video Analysis`;
+  }
+
+  // --- Priority 3: Custom Prompt ---
+  if (promptText && promptText.trim()) {
+    const defaultPromptKeywords = ['analyze this video', 'extract the following', 'metadata extraction', 'timestamp analysis'];
+    const isDefaultPrompt = defaultPromptKeywords.some(keyword => promptText.toLowerCase().includes(keyword));
+    if (!isDefaultPrompt) {
+      const lines = promptText.split(/\n/).filter(l => l.trim());
+      if (lines.length > 0) {
+        const title = lines[0].trim();
+        if (title.length > 0 && title.length < 100) {
+          return title.length > 60 ? title.substring(0, 57) + '...' : title;
+        }
+      }
+    }
+  }
+
+  // --- Priority 4 (Fallback): Summary Text ---
+  if (analysisText) {
+    const summaryMatch = analysisText.match(/(?:SUMMARY|STORYLINE)[\s\*:]*\n+(.+?)(?:\n\n|\nTIMESTEMPS|$)/is);
+    if (summaryMatch && summaryMatch[1]) {
+      const summary = summaryMatch[1].trim();
+      const firstLine = summary.split('\n')[0].trim();
+      if (firstLine && firstLine.length > 10) {
+        return firstLine.length > 60 ? firstLine.substring(0, 57) + '...' : firstLine;
+      }
+    }
+  }
+
+  // --- Final Fallback ---
+  return `Video Analysis ${new Date().toLocaleDateString()}`;
 }
 
 // Keep-alive agent for outgoing HTTPS with improved timeout settings
@@ -615,128 +900,91 @@ async function streamWithRetry(model, request, { attempts = 3, initialDelayMs = 
 
 // ---------- endpoint ----------
 
-app.post('/upload', (req, res) => {
-  // Set streaming headers IMMEDIATELY - this allows client to start receiving response
+app.post('/upload', checkAuth, (req, res) => {
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('X-Accel-Buffering', 'no');
   
   upload(req, res, async (err) => {
     if (err) {
-      const message = err.message || 'File upload error';
-      return res.status(400).send(message);
+      return res.status(400).send(err.message || 'File upload error');
     }
 
     const { url, prompt } = req.body || {};
     const hasFile = !!req.file;
     const hasUrl = !!url;
 
-    // Prompt is now optional; we'll combine it with DEFAULT_PROMPT below
-    if (hasFile && hasUrl) {
-      return res.status(400).send('Provide either a video file OR a YouTube URL, not both.');
-    }
-    if (!hasFile && !hasUrl) {
-      return res.status(400).send('Upload a video or provide a YouTube URL.');
-    }
-    if (hasUrl && !isYouTubeUrl(url)) {
-      return res.status(400).send('URL must be a valid YouTube link.');
-    }
+    if (hasFile && hasUrl) return res.status(400).send('Provide either a video file OR a YouTube URL, not both.');
+    if (!hasFile && !hasUrl) return res.status(400).send('Upload a video or provide a YouTube URL.');
+    if (hasUrl && !isYouTubeUrl(url)) return res.status(400).send('URL must be a valid YouTube link.');
 
-    // Send immediate acknowledgment - this ensures client gets response right away
-    // For YouTube URLs, send a specific message; for local files, send generic message
-    try {
-      const message = hasUrl ? '[Notice] YouTube URL received. Processing...\n' : '[Notice] Request received. Processing...\n';
-      res.write(message);
-      if (typeof res.flushHeaders === 'function') {
-        res.flushHeaders();
-      }
-    } catch (flushError) {
-      console.warn('Could not flush initial response:', flushError);
+    const message = hasUrl ? '[Notice] YouTube URL received. Processing...\n' : '[Notice] Request received. Processing...\n';
+    res.write(message);
+
+    // --- NEW JOB TRACKING ---
+    const startTime = Date.now();
+    const jobId = `${Date.now()}-${req.user.google_id.slice(0, 5)}`;
+    const userGoogleId = req.user.google_id;
+    // --- Get user's first name ---
+    let analyzedByName = 'User';
+    if (req.user.displayName) {
+      analyzedByName = req.user.displayName.split(' ')[0]; // "Arpit Sharma" -> "Arpit"
+    } else if (req.user.email) {
+      analyzedByName = req.user.email.split('@')[0]; // "arpit@..." -> "arpit"
     }
+    // --- End ---
+    const jobName = hasFile ? req.file.originalname : (url.split('v=')[1]?.split('&')[0] || 'YouTube Video');
 
     let localPath = null;
     let cleanupPath = null;
     let uploaded = null;
+    let analysisTextContent = ''; // Variable to capture stream output
 
     // Enqueue job to respect concurrency limit
     const position = enqueueJob(async () => {
       try {
-        // 1) Resolve local video path
+        // 1. Create initial 'processing' record
+        db.prepare(`
+          INSERT INTO analysis_jobs (job_id, user_google_id, analyzed_by_name, job_name, status, created_at, file_name)
+          VALUES (?, ?, ?, ?, 'processing', ?, ?)
+        `).run(jobId, userGoogleId, analyzedByName, jobName, new Date().toISOString(), (hasFile ? req.file.filename : null));
+
+        // 2. Resolve local video path
         if (hasFile) {
           localPath = req.file.path;
           cleanupPath = localPath;
-          
-          // --- START ETA FOR LOCAL FILE ---
+          // ETA Logic
           try {
             const fileSize = req.file.size;
-            // Logic: 90s base + 2.0s per MB (conservative estimate for user uploads)
-            const etaSeconds = 90 + Math.floor(fileSize / (1024 * 1024) * 2.0);
+            const etaSeconds = 90 + Math.floor(fileSize / (1024 * 1024) * 2.0); // Slow path
             res.write(`\n[Notice] ETA: ${etaSeconds}\n`);
           } catch (e) { console.warn('Could not calculate ETA for local file'); }
-          // --- END ETA ---
         } else {
           res.write('Downloading YouTube video…\n');
-          try {
-            localPath = await downloadYouTube(url);
-            
-            // --- START ETA FOR YOUTUBE FILE ---
-            try {
-              const stats = await fsp.stat(localPath);
-              const fileSize = stats.size;
-              // Logic: 90s base + 0.2s per MB (faster estimate for YouTube downloads)
-              const etaSeconds = 90 + Math.floor(fileSize / (1024 * 1024) * 0.2);
-              res.write(`\n[Notice] ETA: ${etaSeconds}\n`);
-            } catch (e) { console.warn('Could not calculate ETA for YouTube file'); }
-            // --- END ETA ---
-          } catch (e) {
-            const msg = e?.message || String(e);
-            if (/ffmpeg/i.test(msg)) {
-              throw new Error('YouTube download needs ffmpeg for merging. Install it (e.g., winget install FFmpeg.FFmpeg -e) and try again.\n' + msg);
-            }
-            if (/HTTP Error 410|unavailable|age|signin|restricted/i.test(msg)) {
-              throw new Error('This YouTube video cannot be downloaded (age-restricted, private, or region-locked). Try a different public video.\n' + msg);
-            }
-            if (/\bebusy\b/i.test(msg)) {
-              throw new Error('YouTube download failed due to a temporary file lock (EBUSY). Please try again in a moment, or exclude your temp folder from real-time antivirus scanning.\n' + msg);
-            }
-            throw new Error('YouTube download failed:\n' + msg);
-          }
+          localPath = await downloadYouTube(url);
           cleanupPath = localPath;
+          // ETA Logic
+          try {
+            const stats = await fsp.stat(localPath);
+            const fileSize = stats.size;
+            const etaSeconds = 90 + Math.floor(fileSize / (1024 * 1024) * 0.2); // Fast path
+            res.write(`\n[Notice] ETA: ${etaSeconds}\n`);
+          } catch (e) { console.warn('Could not calculate ETA for YouTube file'); }
           res.write('Download complete.\n');
         }
 
-        // 2) Upload to Gemini with retry logic
+        // 3. Upload to Gemini
         const mimeType = getMimeType(localPath);
         res.write('Uploading video to Gemini File API…\n');
-
-        try {
-          uploaded = await uploadFileWithRetry(
-            fileManager,
-            localPath,
-            {
-              mimeType,
-              displayName: path.basename(localPath),
-            },
-            {
-              attempts: 3,
-              initialDelayMs: 3000,
-              onRetry: async (nextAttempt, delayMs, e) => {
-                const errorMsg = e?.message || String(e);
-                res.write(`\n[Notice] Upload error (${errorMsg.includes('fetch failed') ? 'network issue' : errorMsg}). Retrying attempt ${nextAttempt} in ${Math.round(delayMs/1000)}s…\n`);
-              }
-            }
-          );
-        } catch (uploadErr) {
-          const errorMsg = uploadErr?.message || String(uploadErr);
-          if (errorMsg.includes('fetch failed') || errorMsg.includes('network')) {
-            throw new Error('Failed to connect to Gemini API. Please check your internet connection and API key. If the problem persists, it may be a temporary Google API issue. Error: ' + errorMsg);
+        uploaded = await uploadFileWithRetry(fileManager, localPath, { mimeType, displayName: path.basename(localPath) }, {
+          onRetry: async (nextAttempt, delayMs, e) => {
+            res.write(`\n[Notice] Upload error (${e.message.includes('fetch failed') ? 'network issue' : e.message}). Retrying attempt ${nextAttempt} in ${Math.round(delayMs/1000)}s…\n`);
           }
-          throw uploadErr;
-        }
+        });
 
         if (!uploaded?.file?.name) throw new Error('Failed to upload file to Gemini.');
 
-        // 3) Wait ACTIVE
+        // 4. Wait ACTIVE
         res.write('Upload complete. Waiting for Gemini to process the file…\n');
         const ready = await waitForActive(uploaded.file.name);
         const fileUri = ready.file?.uri || uploaded.file?.uri;
@@ -744,27 +992,15 @@ app.post('/upload', (req, res) => {
 
         res.write('File is ACTIVE. Starting analysis with Gemini 2.5 Pro…\n\n');
 
-        // 4) Stream generation with retries
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' }, { timeout: 5 * 60 * 1000 });
-
-        // Build final prompt (DEFAULT + optional user instruction)
+        // 5. Stream generation
+        const model = genAI.getGenerativeModel({ model: MODEL }, { timeout: 5 * 60 * 1000 });
         const userQuery = (prompt || '').trim();
         let finalPrompt = DEFAULT_PROMPT;
-        if (userQuery) {
-          finalPrompt += `\n\nADDITIONAL USER INSTRUCTION:\n${userQuery}`;
-        }
-        const requestPayload = {
-          contents: [{
-            parts: [
-              { text: finalPrompt },
-              { fileData: { mimeType, fileUri } }
-            ]
-          }]
-        };
+        if (userQuery) finalPrompt += `\n\nADDITIONAL USER INSTRUCTION:\n${userQuery}`;
 
-        const streamResp = await streamWithRetry(model, requestPayload, {
-          attempts: 3,
-          initialDelayMs: 2000,
+        const streamResp = await streamWithRetry(model, {
+          contents: [{ parts: [{ text: finalPrompt }, { fileData: { mimeType, fileUri } }] }]
+        }, {
           onRetry: async (nextAttempt, delayMs, e) => {
             res.write(`\n[Notice] Transient error (${e?.status || e?.code || 'unknown'}). Retrying attempt ${nextAttempt} in ${Math.round(delayMs/1000)}s…\n`);
           }
@@ -772,41 +1008,63 @@ app.post('/upload', (req, res) => {
 
         for await (const chunk of streamResp.stream) {
           const text = chunk?.text?.() || '';
-          if (text) res.write(text);
+          if (text) {
+            analysisTextContent += text; // Capture output
+            res.write(text);
+          }
         }
-        
-        // --- Move local file to permanent storage before finalizing ---
+
+        // 6. Move file and finalize job
         let savedUrl = null;
         if (hasFile && localPath) {
           try {
+            // Ensure shared directory exists
+            await fsp.mkdir(SHARED_DIR, { recursive: true });
+            
             const newName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${path.extname(localPath) || '.bin'}`;
             const newPath = path.join(SHARED_DIR, newName);
             
-            // Move the file instead of re-uploading
-            await fsp.rename(localPath, newPath);
+            // Use copyFile + unlink instead of rename to support cross-device moves
+            await fsp.copyFile(localPath, newPath);
+            await fsp.unlink(localPath);
             
-            // Create the relative URL to send to the client
             savedUrl = `/shared/${encodeURIComponent(newName)}`;
-            
-            // Send a special notice to the client
             res.write(`\n[Notice] File saved to: ${savedUrl}\n`);
-            
-            // VERY IMPORTANT: Prevent the 'finally' block from deleting this file
             cleanupPath = null;
-            
-            console.log('Moved temp file to permanent storage:', newPath);
           } catch (moveErr) {
-            console.error('Failed to move temp file:', moveErr);
+            console.error('Failed to save video file:', moveErr);
             res.write(`\n[Error] Failed to save video file to history: ${moveErr.message}\n`);
+            // Continue anyway - job will be saved without video URL
+            // Don't set cleanupPath = null, so the temp file gets cleaned up in finally block
           }
+        } else if (hasUrl) {
+          savedUrl = url; // Save the original YouTube URL
         }
-        // --- END OF NEW CODE ---
-        
+
+        // 7. Update job as 'completed'
+        const time_taken_ms = Date.now() - startTime;
+        const finalJobName = extractTitle(analysisTextContent, userQuery, (hasFile ? req.file.originalname : null), (hasUrl ? url : null));
+        db.prepare(`
+          UPDATE analysis_jobs 
+          SET status = 'completed', time_taken_ms = ?, analysis_text = ?, job_name = ?, video_url = ?
+          WHERE job_id = ?
+        `).run(time_taken_ms, analysisTextContent, finalJobName, savedUrl, jobId);
+
         res.write('\n');
       } catch (e) {
-        const msg = e?.message || String(e);
+        // 8. Update job as 'failed'
+        const time_taken_ms = Date.now() - startTime;
+        const error_message = e?.message || String(e);
+        db.prepare(`
+          UPDATE analysis_jobs 
+          SET status = 'failed', time_taken_ms = ?, error_message = ?
+          WHERE job_id = ?
+        `).run(time_taken_ms, error_message, jobId);
+
+        const msg = `\n[Error] ${error_message}\n`;
+        console.error(msg);
         if (!res.headersSent) return res.status(500).send(msg);
-        else res.write(`\n[Error] ${msg}\n`);
+        else res.write(msg);
       } finally {
         await deleteIfExists(cleanupPath);
         try { if (uploaded?.file?.name) await fileManager.deleteFile(uploaded.file.name); } catch {}
@@ -818,7 +1076,7 @@ app.post('/upload', (req, res) => {
 });
 
 // Share endpoint: accepts a local video file and returns a public URL under /shared
-app.post('/share/upload', (req, res) => {
+app.post('/share/upload', checkAuth, (req, res) => {
   shareUpload(req, res, (err) => {
     if (err) {
       const message = err?.message || 'Share upload failed';
@@ -849,7 +1107,7 @@ app.post('/share/upload', (req, res) => {
 
 
 // Get shared analysis by ID
-app.get('/api/share/:id', async (req, res) => {
+app.get('/api/share/:id', checkAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const shared = await readSharedAnalyses();
@@ -896,165 +1154,247 @@ app.get('/share/:id', async (req, res) => {
   }
 });
 
-// ---------- History API ----------
-app.get('/api/history', async (req, res) => {
-  const items = await readHistory();
-  // newest first by id (timestamp string)
-  items.sort((a, b) => (parseInt(b.id) || 0) - (parseInt(a.id) || 0));
-  res.json(items);
-});
-
-app.get('/api/history/storage', async (req, res) => {
-  const items = await readHistory();
-  const used = await computeUsedBytes(items);
-  res.json({ used, total: TOTAL_STORAGE_BYTES });
-});
-
-app.post('/api/history', async (req, res) => {
+// ---------- History API (now from SQLite) ----------
+app.get('/api/history', checkAuth, (req, res) => {
   try {
-    await lock(HISTORY_FILE);
-    
-    const { name, analysisText, videoUrl, fileName } = req.body || {};
-    if (!analysisText || !name) return res.status(400).json({ message: 'Missing name or analysisText' });
-    const items = await readHistory();
-    const timestamp = Date.now();
-    const newItem = { 
-      id: timestamp.toString(), 
-      name, 
-      analysisText, 
-      videoUrl: videoUrl || null, 
-      fileName,
-      createdAt: timestamp,
-      date: new Date(timestamp).toISOString()
-    };
-    const used = await computeUsedBytes(items);
-    const addBytes = textSizeBytes(analysisText) + (await getFileSizeBytesFromShared(videoUrl));
-    if (used + addBytes > TOTAL_STORAGE_BYTES) {
-      return res.status(413).json({ message: 'Storage limit reached (20GB). Please delete some history.', used, total: TOTAL_STORAGE_BYTES });
-    }
-    items.unshift(newItem);
-    await writeHistory(items);
-    res.status(201).json(newItem);
+    // Get all jobs (completed and failed) for the logged-in user
+    const items = db.prepare(`
+      SELECT job_id, job_name, analysis_text, video_url, file_name, created_at, analyzed_by_name, status
+      FROM analysis_jobs 
+      WHERE user_google_id = ? AND (status = 'completed' OR status = 'failed')
+      ORDER BY created_at DESC
+    `).all(req.user.google_id);
+
+    // Map to the old format for frontend compatibility
+    const history = items.map(item => ({
+      id: item.job_id,
+      name: item.job_name,
+      analysisText: item.analysis_text,
+      videoUrl: item.video_url,
+      fileName: item.file_name,
+      createdAt: new Date(item.created_at).getTime(),
+      analyzedBy: item.analyzed_by_name ? item.analyzed_by_name.split(' ')[0].split('@')[0] : 'User',
+      status: item.status // Add status to the response
+    }));
+
+    res.json(history);
   } catch (e) {
-    res.status(500).json({ message: e?.message || 'Failed to save history' });
-  } finally {
-    await unlock(HISTORY_FILE);
+    res.status(500).json({ message: e.message });
   }
 });
 
-app.put('/api/history/:id', async (req, res) => {
+app.get('/api/history/storage', checkAuth, (req, res) => {
   try {
-    await lock(HISTORY_FILE);
-    
+    // Simplified storage check: just count text bytes for now
+    const row = db.prepare(`
+      SELECT SUM(LENGTH(analysis_text)) as total_text_bytes 
+      FROM analysis_jobs 
+      WHERE user_google_id = ?
+    `).get(req.user.google_id);
+    const used = row?.total_text_bytes || 0;
+    // We'll add file size calculation later
+    res.json({ used, total: TOTAL_STORAGE_BYTES });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// POST /api/history is NO LONGER NEEDED (it's part of /upload)
+
+app.put('/api/history/:id', checkAuth, (req, res) => {
+  try {
     const { id } = req.params;
     const { name } = req.body || {};
-    const items = await readHistory();
-    const it = items.find(x => x.id === id);
-    if (!it) return res.status(404).json({ message: 'Not found' });
-    if (name && name.trim()) it.name = name.trim();
-    await writeHistory(items);
-    res.json(it);
-  } catch (e) { 
-    res.status(500).json({ message: e?.message || 'Failed to update' }); 
-  } finally {
-    await unlock(HISTORY_FILE);
-  }
-});
-
-app.delete('/api/history/:id', async (req, res) => {
-  try {
-    await lock(HISTORY_FILE);
-    await lock(SHARED_ANALYSES_FILE);
-    
-    const { id } = req.params;
-    let items = await readHistory();
-    const item = items.find(x => x.id === id);
-    if (!item) return res.status(404).json({ message: 'Not found' });
-    
-    // Collect video URLs that need to be deleted
-    const videoUrlsToDelete = new Set();
-    if (item.videoUrl && typeof item.videoUrl === 'string') {
-      videoUrlsToDelete.add(item.videoUrl);
-    }
-    
-    // Delete associated shared analyses
-    try {
-      const shared = await readSharedAnalyses();
-      const shareIdsToDelete = [];
-      
-      // Find all shared analyses that match this history item
-      for (const [shareId, sharedItem] of Object.entries(shared)) {
-        // Match by analysisText (most reliable) or videoUrl
-        const textMatches = sharedItem.analysisText && item.analysisText && 
-                           sharedItem.analysisText.trim() === item.analysisText.trim();
-        const videoMatches = sharedItem.videoUrl && item.videoUrl && 
-                            sharedItem.videoUrl === item.videoUrl;
-        
-        if (textMatches || videoMatches) {
-          shareIdsToDelete.push(shareId);
-          // Track video URLs from shared analyses that will be deleted
-          if (sharedItem.videoUrl) {
-            videoUrlsToDelete.add(sharedItem.videoUrl);
-          }
-        }
-      }
-      
-      // Delete shared analyses
-      for (const shareId of shareIdsToDelete) {
-        delete shared[shareId];
-        console.log('Deleted shared analysis:', shareId);
-      }
-      
-      if (shareIdsToDelete.length > 0) {
-        await writeSharedAnalyses(shared);
-        console.log(`Deleted ${shareIdsToDelete.length} shared analysis/analyses`);
-      }
-    } catch (err) {
-      console.error('Error deleting shared analyses:', err);
-      // Continue with deletion even if shared analysis deletion fails
-    }
-    
-    // Delete all video files
-    for (const videoUrl of videoUrlsToDelete) {
-      try {
-        // Extract filename from URL (could be /shared/filename or full URL)
-        let pathname = '';
-        try {
-          const url = new URL(videoUrl);
-          pathname = url.pathname;
-        } catch {
-          // If it's not a full URL, treat it as a path
-          pathname = videoUrl;
-        }
-        
-        if (pathname.startsWith('/shared/')) {
-          const filename = decodeURIComponent(pathname.replace('/shared/', ''));
-          const filePath = path.join(SHARED_DIR, filename);
-          await deleteIfExists(filePath);
-          console.log('Deleted video file:', filePath);
-        }
-      } catch (err) {
-        console.error('Error deleting video file:', err);
-        // Continue with deletion even if file deletion fails
-      }
-    }
-    
-    // Remove item from history
-    items = items.filter(x => x.id !== id);
-    await writeHistory(items);
+    if (!name || !name.trim()) return res.status(400).json({ message: 'Name is required' });
+    const info = db.prepare(`
+      UPDATE analysis_jobs 
+      SET job_name = ? 
+      WHERE job_id = ? AND user_google_id = ?
+    `).run(name.trim(), id, req.user.google_id);
+    if (info.changes === 0) return res.status(404).json({ message: 'Not found or no permission' });
     res.json({ ok: true });
   } catch (e) { 
-    console.error('Delete error:', e);
-    res.status(500).json({ message: e?.message || 'Failed to delete' }); 
-  } finally {
-    await unlock(SHARED_ANALYSES_FILE);
-    await unlock(HISTORY_FILE);
+    res.status(500).json({ message: e.message }); 
   }
 });
 
-// Root
-app.get('*', (req, res) => {
+app.delete('/api/history/:id', checkAuth, (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // 1. Get the item to find its video_url and verify ownership
+    const item = db.prepare(
+      'SELECT video_url, job_name FROM analysis_jobs WHERE job_id = ? AND user_google_id = ?'
+    ).get(id, req.user.google_id);
+    
+    if (!item) {
+      return res.status(404).json({ message: 'Not found or no permission' });
+    }
+
+    // 2. Delete the entire record from the database (this deletes all video data: analysis_text, video_url, file_name, etc.)
+    const info = db.prepare(
+      'DELETE FROM analysis_jobs WHERE job_id = ? AND user_google_id = ?'
+    ).run(id, req.user.google_id);
+    
+    if (info.changes === 0) {
+      return res.status(404).json({ message: 'Not found or already deleted' });
+    }
+
+    console.log(`Deleted analysis job "${item.job_name}" (ID: ${id}) from database`);
+
+    // 3. (Best effort) Delete the associated video file from /shared directory
+    if (item.video_url && item.video_url.startsWith('/shared/')) {
+      const filename = decodeURIComponent(item.video_url.replace('/shared/', ''));
+      const filePath = path.join(SHARED_DIR, filename);
+      deleteIfExists(filePath)
+        .then(() => console.log(`Deleted video file: ${filePath}`))
+        .catch(err => console.error(`Failed to delete video file: ${filePath}`, err));
+    }
+
+    res.json({ ok: true, message: 'Analysis and video data deleted successfully' });
+  } catch (e) { 
+    console.error('Delete error:', e);
+    res.status(500).json({ message: e.message || 'Failed to delete analysis' }); 
+  }
+});
+
+// ---------- User Info API ----------
+app.get('/api/user/me', checkAuth, (req, res) => {
+  // Get admin emails from .env
+  const adminEmailList = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(e => e.length > 0);
+
+  const userEmail = req.user?.email?.toLowerCase();
+  const isAdmin = userEmail && adminEmailList.includes(userEmail);
+
+  res.json({
+    name: req.user.displayName || req.user.email.split('@')[0],
+    email: req.user.email,
+    isAdmin: isAdmin
+  });
+});
+
+// ---------- ADMIN API ----------
+// Health check endpoint (lightweight, no auth required for monitoring)
+app.get('/api/admin/health', (req, res) => {
+  try {
+    const health = {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      database: 'connected'
+    };
+
+    // Test database connection
+    try {
+      db.prepare('SELECT 1').get();
+      health.database = 'connected';
+    } catch (err) {
+      health.database = 'error';
+      health.dbError = err.message;
+    }
+
+    res.json(health);
+  } catch (e) {
+    res.status(500).json({ 
+      status: 'error',
+      message: e.message 
+    });
+  }
+});
+
+// Stats endpoint (requires authentication + admin check)
+app.get('/api/admin/stats', checkAuth, checkAdmin, (req, res) => {
+  try {
+    const stats = {
+      users: {},
+      logins: {},
+      jobs: {}
+    };
+
+    // Get user stats
+    stats.users.total = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+
+    // Get login stats
+    stats.logins.total = db.prepare('SELECT COUNT(*) as count FROM login_logs').get().count;
+    // Get most recent login for each user
+    stats.logins.recent = db.prepare(`
+      SELECT 
+        l.timestamp, 
+        u.display_name, 
+        u.email,
+        u.google_id
+      FROM login_logs l
+      JOIN users u ON l.user_google_id = u.google_id
+      WHERE l.log_id IN (
+        SELECT MAX(log_id) 
+        FROM login_logs 
+        GROUP BY user_google_id
+      )
+      ORDER BY l.timestamp DESC LIMIT 10
+    `).all();
+
+    // Get job stats
+    stats.jobs.completed = db.prepare("SELECT COUNT(*) as count FROM analysis_jobs WHERE status = 'completed'").get().count;
+    stats.jobs.failed = db.prepare("SELECT COUNT(*) as count FROM analysis_jobs WHERE status = 'failed'").get().count;
+    stats.jobs.processing = db.prepare("SELECT COUNT(*) as count FROM analysis_jobs WHERE status = 'processing'").get().count;
+    stats.jobs.avg_time_ms = db.prepare("SELECT AVG(time_taken_ms) as avg FROM analysis_jobs WHERE status = 'completed'").get().avg;
+    stats.jobs.recent = db.prepare("SELECT * FROM analysis_jobs ORDER BY created_at DESC").all();
+
+    // --- NEW STATS ---
+    
+    // 4. Get Total Analysis Time
+    const totalTimeResult = db.prepare("SELECT SUM(time_taken_ms) as total FROM analysis_jobs WHERE status = 'completed'").get();
+    stats.jobs.total_time_ms = totalTimeResult.total || 0;
+
+    // 5. Get Most Active User
+    const mostActiveResult = db.prepare(`
+      SELECT 
+        u.display_name, 
+        COUNT(j.job_id) as job_count
+      FROM analysis_jobs j
+      JOIN users u ON j.user_google_id = u.google_id
+      GROUP BY j.user_google_id
+      ORDER BY job_count DESC
+      LIMIT 1
+    `).get();
+    stats.users.most_active = mostActiveResult ? `${mostActiveResult.display_name} (${mostActiveResult.job_count} jobs)` : 'N/A';
+    
+    // --- END NEW STATS ---
+
+    res.json(stats);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// --- NEW API ENDPOINT FOR USER LOGIN HISTORY ---
+app.get('/api/admin/logins/:google_id', checkAuth, checkAdmin, (req, res) => {
+  try {
+    const { google_id } = req.params;
+    const logins = db.prepare(`
+      SELECT timestamp 
+      FROM login_logs 
+      WHERE user_google_id = ? 
+      ORDER BY timestamp DESC
+    `).all(google_id);
+
+    res.json(logins);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// Serve the main app page ONLY if authenticated
+app.get('/', checkAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Catch-all for any other routes (keep this last)
+app.get('*', (req, res) => {
+  res.redirect('/');
 });
 
 const server = app.listen(PORT, '0.0.0.0', () => {

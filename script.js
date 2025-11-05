@@ -48,6 +48,20 @@ const metaTableWrap = document.getElementById('meta');
 
 
 
+// Delete modal elements
+
+const deleteModal = document.getElementById('deleteModal');
+
+const deleteStatus = document.getElementById('deleteStatus');
+
+const deleteProgressBar = document.getElementById('deleteProgressBar');
+
+const deleteProgressPercent = document.getElementById('deleteProgressPercent');
+
+const deleteSubStatus = document.getElementById('deleteSubStatus');
+
+
+
 const tsFilterBtn = document.getElementById('tsFilterBtn');
 
 const tsFilterDropdown = document.getElementById('tsFilterDropdown');
@@ -529,6 +543,76 @@ function activateCheckpoint(checkpointName) {
   const progress = index >= 0 ? ((index + 1) / checkpoints.length) * 100 : 0;
 
   updateCheckpointProgress(progress);
+
+}
+
+
+
+// Delete modal controller
+
+function setDeleteProgress(percent, status, subStatus) {
+
+  if (percent > 0 && deleteModal.classList.contains('hidden')) {
+
+    deleteModal.classList.remove('hidden');
+
+    deleteModal.style.opacity = '1';
+
+  }
+
+  
+
+  if (percent <= 0 && !deleteModal.classList.contains('hidden')) {
+
+    deleteModal.style.opacity = '0';
+
+    setTimeout(() => {
+
+      deleteModal.classList.add('hidden');
+
+      if (deleteProgressBar) deleteProgressBar.style.width = '0%';
+
+      if (deleteProgressPercent) deleteProgressPercent.textContent = '0%';
+
+    }, 300);
+
+  }
+
+  
+
+  const cleanPercent = Math.max(0, Math.min(100, percent));
+
+  
+
+  if (deleteProgressBar) {
+
+    deleteProgressBar.style.width = `${cleanPercent}%`;
+
+  }
+
+  
+
+  if (deleteProgressPercent) {
+
+    deleteProgressPercent.textContent = `${Math.round(cleanPercent)}%`;
+
+  }
+
+  
+
+  if (deleteStatus && status) {
+
+    deleteStatus.textContent = status;
+
+  }
+
+  
+
+  if (deleteSubStatus && subStatus) {
+
+    deleteSubStatus.textContent = subStatus;
+
+  }
 
 }
 
@@ -2015,37 +2099,13 @@ async function performAnalysis(prompt, url, file) {
 
       
       
-      // Activate finalize checkpoint before saving and loading video
-
       setUpload(97, 'Finalizing...');
-
-      updateStep('Preparing video player and saving results...', false);
-
+      updateStep('Reloading history and loading video...', false);
       activateCheckpoint('finalize');
+      updateCheckpointProgress(90);
 
-      updateCheckpointProgress(90); // Start of finalize checkpoint
-
-    }
-
-
-
-    // Add to history and finalize video loading
-
-    if (resultsPre.textContent.trim().length > 0) {
-
-        shareBtn.disabled = false;
-
-        
-        
-        // Save to history (this may upload local video file if needed)
-
-        if (typeof localforage !== 'undefined') {
-
-          updateStep('Saving analysis to history...', false);
-
-          await addHistoryItem(resultsPre.textContent);
-
-        }
+      // Just reload the history list
+      await renderHistory(historySearch ? historySearch.value : '');
 
         
         
@@ -2858,7 +2918,7 @@ async function renderHistory(searchQuery = '') {
 
     if (item.createdAt || item.date || item.id) {
 
-      const timestamp = item.createdAt || (item.date ? new Date(item.date).getTime() : parseInt(item.id));
+      const timestamp = item.createdAt;
 
       const date = new Date(timestamp);
 
@@ -2924,13 +2984,21 @@ async function renderHistory(searchQuery = '') {
 
         <div class="history-item-content">
 
-          <span class="history-name" title="${item.name}">
+          <div class="history-item-header">
 
-            ${escapeHTML(item.name)}
+            <span class="history-name" title="${item.name}">
 
-          </span>
+              ${escapeHTML(item.name)}
 
-          <span class="history-timestamp">${dateTimeText}</span>
+            </span>
+
+            <span class="history-timestamp">${dateTimeText}</span>
+
+          </div>
+
+          ${item.analyzedBy ? `<span class="history-user">Analyzed by: <span class="history-user-name-pill">${escapeHTML(item.analyzedBy.split(' ')[0].split('@')[0])}</span></span>` : ''}
+
+          ${item.status === 'completed' ? `<span class="history-status status-complete"><span class="status-icon">✓</span></span>` : item.status === 'failed' ? `<span class="history-status status-failed"><span class="status-icon">✗</span></span>` : ''}
 
         </div>
 
@@ -2984,7 +3052,8 @@ async function renderHistory(searchQuery = '') {
 
 // Extract a meaningful title from analysis text or prompt
 
-function extractTitle(analysisText, promptText, fileName, url) {
+// Removed extractTitle - moved to server.js
+function _extractTitle_REMOVED(analysisText, promptText, fileName, url) {
 
   // First, try to extract from prompt if it's descriptive (not the default prompt)
 
@@ -3130,7 +3199,8 @@ function extractTitle(analysisText, promptText, fileName, url) {
 
 
 
-async function addHistoryItem(analysisText) {
+// Removed addHistoryItem - history is now saved automatically by server during /upload
+async function _addHistoryItem_REMOVED(analysisText) {
 
   if (!analysisText) return;
 
@@ -3233,8 +3303,9 @@ async function addHistoryItem(analysisText) {
   
   
   // Extract meaningful title from analysis text, prompt, or file name
-
-  const name = extractTitle(analysisText, promptText, fileName, url);
+  // NOTE: This function is deprecated - history is now saved automatically by server
+  // const name = extractTitle(analysisText, promptText, fileName, url);
+  const name = 'Legacy item'; // Placeholder since this function shouldn't be called
 
   const resp = await fetch('/api/history', {
 
@@ -3390,15 +3461,28 @@ historyList?.addEventListener('click', (e) => {
 
   }
 
+  // If clicking anywhere else in the history list (not the menu button), close all dropdowns
+  // This includes clicks inside the dropdown itself (except menu items which handle closing themselves)
+
+  document.querySelectorAll('.history-menu-dropdown').forEach(d => {
+
+    d.classList.add('hidden');
+
+  });
+
 });
 
 
 
-// Close dropdowns when clicking outside
+// Close dropdowns when clicking outside history panel
 
 document.addEventListener('click', (e) => {
 
-  if (!e.target.closest('.history-menu')) {
+  // Check if click is outside the history panel entirely
+
+  const isClickInsideHistoryPanel = e.target.closest('#historyPanel') || e.target.closest('#historyList');
+
+  if (!isClickInsideHistoryPanel) {
 
     document.querySelectorAll('.history-menu-dropdown').forEach(d => {
 
@@ -3458,34 +3542,35 @@ historyList?.addEventListener('click', async (e) => {
 
       if (confirm(`Delete "${item.name}"? This will permanently remove the analysis, associated video file, and any shared links.`)) {
 
-        // Show progress bar
-        itemEl.classList.add('deleting');
-        const progressBar = itemEl.querySelector('.history-delete-progress-bar');
-        if (progressBar) {
-          progressBar.style.width = '20%';
-        }
+        // Show delete modal
+        setDeleteProgress(20, 'Deleting...', 'Removing job data...');
 
         try {
-          // Simulate progress
+          // Simulate progress with updates
+          const progressSteps = [
+            { percent: 20, status: 'Deleting...', subStatus: 'Removing job data...' },
+            { percent: 40, status: 'Deleting...', subStatus: 'Removing analysis files...' },
+            { percent: 60, status: 'Deleting...', subStatus: 'Removing video files...' },
+            { percent: 80, status: 'Deleting...', subStatus: 'Cleaning up shared links...' }
+          ];
+
+          let currentStep = 0;
           const progressInterval = setInterval(() => {
-            if (progressBar) {
-              const currentWidth = parseFloat(progressBar.style.width) || 0;
-              if (currentWidth < 80) {
-                progressBar.style.width = Math.min(currentWidth + 20, 80) + '%';
-              }
+            if (currentStep < progressSteps.length) {
+              const step = progressSteps[currentStep];
+              setDeleteProgress(step.percent, step.status, step.subStatus);
+              currentStep++;
             }
-          }, 200);
+          }, 300);
 
           const resp = await fetch(`/api/history/${id}`, { method: 'DELETE' });
 
           clearInterval(progressInterval);
 
-          if (progressBar) {
-            progressBar.style.width = '100%';
-          }
+          setDeleteProgress(100, 'Deleting...', 'Finalizing...');
 
           // Small delay to show completion
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise(resolve => setTimeout(resolve, 400));
 
           if (resp.ok) {
 
@@ -3515,24 +3600,18 @@ historyList?.addEventListener('click', async (e) => {
 
           } else {
 
-            itemEl.classList.remove('deleting');
-            if (progressBar) {
-              progressBar.style.width = '0%';
-            }
-
             const error = await resp.json().catch(() => ({}));
 
             showToast(`Failed to delete: ${error.message || 'Unknown error'}`);
 
           }
 
+          // Hide modal
+          setDeleteProgress(0, '', '');
+
         } catch (err) {
 
-          itemEl.classList.remove('deleting');
-          const progressBar = itemEl.querySelector('.history-delete-progress-bar');
-          if (progressBar) {
-            progressBar.style.width = '0%';
-          }
+          setDeleteProgress(0, '', '');
 
           showToast(`Failed to delete: ${err.message || 'Unknown error'}`);
 
@@ -3736,6 +3815,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   const searchQuery = historySearch ? historySearch.value.trim() : '';
 
   await renderHistory(searchQuery);
+
+  // --- NEW CODE ---
+  async function checkAdminStatus() {
+    try {
+      const res = await fetch('/api/user/me');
+      if (!res.ok) return;
+      const user = await res.json();
+
+      if (user.isAdmin) {
+        // User is an admin, add the admin button to header
+        const headerActions = document.querySelector('.header-actions');
+        if (headerActions) {
+          const adminBtn = document.createElement('a');
+          adminBtn.href = '/admin';
+          adminBtn.className = 'btn ghost admin-btn';
+          adminBtn.textContent = '🛡️ Admin';
+          adminBtn.title = 'Admin Dashboard';
+          adminBtn.style.textDecoration = 'none';
+          headerActions.insertBefore(adminBtn, headerActions.firstChild);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not check admin status', err);
+    }
+  }
+
+  await checkAdminStatus();
+  // --- END NEW CODE ---
 
   
   
