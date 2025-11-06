@@ -29,108 +29,180 @@ const __dirname = path.dirname(__filename);
 const DEFAULT_PROMPT = `Analyze this video and extract the following information:
 
 METADATA EXTRACTION (Extract from any visible text, audio, or context):
+
 - DATE: Any dates, times, or timestamps visible or mentioned
+
 - ADDRESS/LOCATION: Street addresses, building names, landmarks, or location references
-- CITY/STATE/COUNTY: Geographic location information. If the County is not explicitly mentioned in the video, use your internal knowledge to determine the correct county based on the extracted City and State.
+
+- CITY/STATE/COUNTY: Geographic location information.
+
 - POLICE DEPARTMENT: Agency names, officer badges, department identifiers, or jurisdiction
 
-TIMESTAMP ANALYSIS (Extract timestamps for these categories):
 
-1. 911 CALLS:
-   - Emergency calls being made or received
-   - Distress signals or calls for help
-   - Emergency dispatcher communications
-   - Critical emergency moments
 
-2. CCTV FOOTAGE:
-   - Suspicious activities or behaviors
-   - People entering or leaving areas
-   - Vehicle movements and activities
-   - Security incidents or breaches
-   - Unusual or notable events
+TIMESTAMP ANALYSIS:
 
-3. INTERROGATION:
-   - Questioning sessions or interviews
-   - Confessions or admissions
-   - Denials or evasive responses
-   - Important statements or testimony
-   - Emotional reactions during questioning
+Your task is to find events and assign them to one of the 7 categories below.
 
-4. INTERVIEW:
-   - Formal interviews or conversations
-   - Witness interviews
-   - Media interviews
-   - Job interviews or professional discussions
-   - Interview sessions with key individuals
-   - Q&A sessions or discussions
+**CRITICAL TIMESTAMP ACCURACY REQUIREMENTS:**
 
-5. BODYCAM FOOTAGE:
-   - Police officer interactions with civilians
-   - Use of force incidents
-   - Evidence collection moments
-   - Procedural compliance or violations
-   - Important statements or commands
+- You MUST watch the video carefully and identify the EXACT start and end times for each event.
+- Timestamps MUST be precise to the SECOND (MM:SS format).
+- Use the video's actual playback timeline - start from 00:00 at the beginning of the video.
+- Each timestamp should capture a DISTINCT, SEPARATE event or action.
+- Do NOT create overlapping timestamps for the same event.
+- Do NOT round times arbitrarily - use the actual moment when events begin and end.
+- If events are very brief (under 5 seconds), still capture the exact start and end times.
+- PREFER SHORTER, MORE SPECIFIC timestamps over longer, general ones.
+- If a conversation or action lasts 30+ seconds, consider breaking it into smaller segments (e.g., [00:00 - 00:15] for the first part, [00:15 - 00:30] for the next part).
+- Watch the entire video frame-by-frame if necessary to ensure accuracy.
+- Pay attention to natural breaks in conversation, actions, or scene changes to determine precise boundaries.
 
-6. DASHCAM FOOTAGE:
-   - Vehicle-mounted camera recordings
-   - Traffic stops and vehicle pursuits
-   - Road incidents and accidents
-   - Vehicle-related evidence
-   - Dashboard camera captures
+CATEGORY RULES (CRITICAL!):
 
-7. INVESTIGATION:
-   - Evidence discovery and collection
-   - Crime scene analysis
-   - Witness interviews
-   - Key findings or breakthroughs
-   - Case development moments
+- A single event or timestamp (e.g., "[00:00 - 00:05]") **MUST** be listed in only **ONE** category.
+
+- **DO NOT** list the same event in multiple categories.
+
+- You **MUST** follow a strict priority: **Source Categories ALWAYS override Event Categories.**
+
+
+
+- **Priority 1: Source Categories** (If you know the *source* of the clip, use this category):
+
+  - 911 CALLS (Audio source)
+
+  - CCTV FOOTAGE (Fixed camera source)
+
+  - BODYCAM FOOTAGE (Officer-worn camera source)
+
+  - DASHCAM FOOTAGE (Vehicle camera source)
+
+
+
+- **Priority 2: Event Categories** (Only use these if the source is unknown or not applicable, e.g., a formal sit-down interview):
+
+  - INTERROGATION
+
+  - INTERVIEW
+
+  - INVESTIGATION
+
+
+
+- **THE GOLDEN RULE:**
+
+- If an "Interview" or an "Investigation" is clearly recorded on **BODYCAM FOOTAGE**, you **MUST** list it **ONLY** under the **BODYCAM FOOTAGE** category.
+
+- If an "Investigation" is recorded on **CCTV FOOTAGE**, you **MUST** list it **ONLY** under the **CCTV FOOTAGE** category.
+
+- If an "Interrogation" is recorded on a **DASHCAM**, you **MUST** list it **ONLY** under the **DASHCAM FOOTAGE** category.
+
+- **This is not optional.** You must choose only one category, and the Source (Bodycam, CCTV, etc.) always wins.
+
+
 
 FORMAT:
+
 METADATA:
+
 - Date: [extracted date/time information]
+
 - Address/Location: [extracted location details]
+
 - City/State/County: [extracted geographic information]
+
 - Police Department: [extracted agency information]
 
+
+
 TIMESTAMPS:
+
 For each category, you MUST provide a heading with the count of timestamps in that category.
+
+
 
 The format MUST be exactly: [Number]. [CATEGORY NAME] ([Count])
 
+
+
 Examples:
+
 1. 911 CALLS (1)
-2. CCTV FOOTAGE (8)
-3. INTERROGATION (6)
-4. INTERVIEW (4)
-5. BODYCAM FOOTAGE (5)
-6. DASHCAM FOOTAGE (2)
-7. INVESTIGATION (9)
+
+2. CCTV FOOTAGE (8)     <-- An investigation seen on CCTV goes here
+
+3. INTERROGATION (0)  <-- An interrogation on a dashcam means this stays (0)
+
+4. INTERVIEW (0)      <-- An interview on a bodycam means this stays (0)
+
+5. BODYCAM FOOTAGE (5)  <-- All events captured by bodycams go here
+
+6. DASHCAM FOOTAGE (2)  <-- All events captured by dashcams go here
+
+7. INVESTIGATION (0)  <-- An investigation on CCTV means this stays (0)
+
+
 
 The count in parentheses is REQUIRED and must match the actual number of timestamps you provide for that category.
 
-Format each timestamp entry as: [MM:SS - MM:SS] - [Short Label] - [Full Description]
-Example: [00:45 - 01:00] - Heated argument - A heated argument breaks out between the suspect and officers
 
-The Short Label should be a brief 2-4 word summary (e.g., "Heated argument", "Evidence discovery", "911 call received"). The Full Description provides detailed context.
+
+Format each timestamp entry as: [MM:SS - MM:SS] - [Short Label] - [Full Description]
+
+**TIMESTAMP FORMATTING RULES:**
+- Always use [MM:SS - MM:SS] format (two digits for minutes, two digits for seconds).
+- The start time is when the event FIRST begins (first word spoken, first action taken, etc.).
+- The end time is when the event COMPLETELY ends (last word spoken, action completed, scene changes, etc.).
+- Be precise: [00:05 - 00:12] means the event starts at 5 seconds and ends at 12 seconds.
+- If timestamps appear in the video itself, use those exact timestamps.
+- If no timestamps appear in the video, count from the beginning (00:00 is the start of the video).
+
+Example (for an interview on a bodycam):
+
+[00:03 - 00:18] - Field Interview - The officer conducts a field interview with a civilian about a complaint. The interview begins when the officer first addresses the subject and ends when the conversation concludes.
+
+(This timestamp would go under the "BODYCAM FOOTAGE" category, and "INTERVIEW" would be (0)).
+
+
+
+Example (for an investigation on CCTV):
+
+[01:30 - 02:15] - Evidence Collection - A detective is seen collecting evidence from the sidewalk. The action begins when the detective first approaches the evidence and ends when they finish collecting it.
+
+(This timestamp would go under the "CCTV FOOTAGE" category, and "INVESTIGATION" would be (0)).
+
+
+
+**IMPORTANT:** Double-check your timestamps by mentally replaying the video timeline. Each timestamp should accurately reflect when that specific event occurred in the video.
+
+
 
 IMPORTANT REQUIREMENT FOR ALL CATEGORIES:
-You MUST output ALL of the requested categories (911 CALLS, CCTV FOOTAGE, INTERROGATION, INTERVIEW, BODYCAM FOOTAGE, DASHCAM FOOTAGE, INVESTIGATION) in the TIMESTAMPS section, even if no timestamps are found for a particular category.
 
-For any category where you cannot find any timestamps, you MUST explicitly output the category heading followed by a message like "No 911 CALLS timestamps were found in this video." or "No CCTV FOOTAGE timestamps were found in this video." or "No INTERVIEW timestamps were found in this video." or "No DASHCAM FOOTAGE timestamps were found in this video." etc.
+You MUST output ALL 7 of the category headings, even if no timestamps are found.
 
-Do NOT skip any categories. Every requested category must appear in your output, either with timestamps or with a "not found" message.
+For any category with a count of (0), you MUST explicitly output: "No [CATEGORY NAME] timestamps were found in this video."
+
+
 
 SUMMARY AND STORYLINE:
+
 After extracting all timestamps, provide a comprehensive summary that explains:
+
 - The overall narrative of the video
+
 - Key events and their significance
+
 - Timeline of important developments
+
 - Main characters or subjects involved
+
 - Conclusion or outcome
 
-Be thorough in identifying moments that fit these specific categories and extract all visible metadata.`;
+`;
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3005
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
@@ -153,11 +225,14 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      // 1. Allow scripts from cloudflare
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'"],
       frameSrc: ["'self'", "https://www.youtube.com"],
+      // 2. Allow 'blob:' URLs for the video player
+      mediaSrc: ["'self'", "blob:"],
     },
   },
   crossOriginEmbedderPolicy: false,
@@ -960,7 +1035,7 @@ app.post('/upload', checkAuth, (req, res) => {
             res.write(`\n[Notice] ETA: ${etaSeconds}\n`);
           } catch (e) { console.warn('Could not calculate ETA for local file'); }
         } else {
-          res.write('Downloading YouTube video…\n');
+          res.write('[Notice] Downloading YouTube video…\n');
           localPath = await downloadYouTube(url);
           cleanupPath = localPath;
           // ETA Logic
@@ -970,12 +1045,12 @@ app.post('/upload', checkAuth, (req, res) => {
             const etaSeconds = 90 + Math.floor(fileSize / (1024 * 1024) * 0.2); // Fast path
             res.write(`\n[Notice] ETA: ${etaSeconds}\n`);
           } catch (e) { console.warn('Could not calculate ETA for YouTube file'); }
-          res.write('Download complete.\n');
+          res.write('[Notice] Download complete.\n');
         }
 
         // 3. Upload to Gemini
         const mimeType = getMimeType(localPath);
-        res.write('Uploading video to Gemini File API…\n');
+        res.write('[Notice] Uploading video to Gemini File API…\n');
         uploaded = await uploadFileWithRetry(fileManager, localPath, { mimeType, displayName: path.basename(localPath) }, {
           onRetry: async (nextAttempt, delayMs, e) => {
             res.write(`\n[Notice] Upload error (${e.message.includes('fetch failed') ? 'network issue' : e.message}). Retrying attempt ${nextAttempt} in ${Math.round(delayMs/1000)}s…\n`);
@@ -985,12 +1060,12 @@ app.post('/upload', checkAuth, (req, res) => {
         if (!uploaded?.file?.name) throw new Error('Failed to upload file to Gemini.');
 
         // 4. Wait ACTIVE
-        res.write('Upload complete. Waiting for Gemini to process the file…\n');
+        res.write('[Notice] Upload complete. Waiting for Gemini to process the file…\n');
         const ready = await waitForActive(uploaded.file.name);
         const fileUri = ready.file?.uri || uploaded.file?.uri;
         if (!fileUri) throw new Error('Gemini did not return a file URI.');
 
-        res.write('File is ACTIVE. Starting analysis with Gemini 2.5 Pro…\n\n');
+        res.write('[Notice] File is ACTIVE. Starting analysis with Gemini 2.5 Pro…\n\n');
 
         // 5. Stream generation
         const model = genAI.getGenerativeModel({ model: MODEL }, { timeout: 5 * 60 * 1000 });

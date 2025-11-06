@@ -1,4 +1,4 @@
-// Frontend controller: upload/progress/stream + Player + Timestamp Filter
+﻿// Frontend controller: upload/progress/stream + Player + Timestamp Filter
 
 
 import { escapeHTML, parseAndPill, categoryClass, parseGeminiOutput, timeToSeconds, buildStructuredOutput } from './parser.js';
@@ -33,6 +33,10 @@ const progressLinearBar = document.getElementById('progressLinearBar');
 const progressConsole = document.getElementById('progressConsole');
 
 const closeProgressModal = document.getElementById('closeProgressModal');
+
+const modalRetryBtn = document.getElementById('modalRetryBtn');
+
+const streamPreview = document.getElementById('progressStreamPreview');
 
 
 
@@ -468,6 +472,59 @@ function updateStreamingContent(fullText) {
 
 
 
+// NEW HELPER: Updates the live stat cards
+function updateLiveStats(fullText) {
+  // Remove HTML tags if present and get clean text
+  const cleanText = fullText.replace(/<[^>]*>/g, '').trim();
+  
+  // Count words - match sequences of letters (including apostrophes in words like "don't")
+  // This excludes numbers, timestamps, and other non-word tokens
+  const words = cleanText.match(/[a-zA-Z]+(?:'[a-zA-Z]+)*/g) || [];
+  
+  // Count timestamps - match patterns like [MM:SS or [00:00
+  const timestamps = cleanText.match(/\[\d{1,2}:\d{2}/g) || [];
+  
+  // Count categories - match category headers like "1. CATEGORY NAME (5)"
+  const categories = cleanText.match(/^\d+\.\s*[A-Z\s&]+\s*\(\d+\)/gm) || [];
+
+  const wordsEl = document.getElementById('stat-words-analyzed');
+  const timestampsEl = document.getElementById('stat-timestamps-found');
+  const categoriesEl = document.getElementById('stat-categories-found');
+
+  if (wordsEl) wordsEl.textContent = words.length;
+  if (timestampsEl) timestampsEl.textContent = timestamps.length;
+  if (categoriesEl) categoriesEl.textContent = categories.length;
+}
+
+// NEW HELPER: Shows the modal error state
+function showModalError(errorMessage) {
+  const modalContent = progressModal.querySelector('.progress-modal-content');
+  if (modalContent) {
+    modalContent.classList.add('error-state');
+  }
+  
+  progressStatus.textContent = 'Analysis Failed';
+  
+  const errorMsg = errorMessage.replace('[Error]', '').trim();
+  if (streamPreview) {
+    streamPreview.innerHTML = `<span style="color: var(--err);">${escapeHTML(errorMsg)}</span>`;
+  }
+  
+  if (etaTimer) clearInterval(etaTimer);
+}
+
+// NEW HELPER: Hides the modal error state
+function hideModalError() {
+  const modalContent = progressModal.querySelector('.progress-modal-content');
+  if (modalContent) {
+    modalContent.classList.remove('error-state');
+  }
+  // Reset stream preview
+  if (streamPreview) {
+    streamPreview.innerHTML = '<span class="muted">Waiting for AI stream...</span>';
+  }
+}
+
 // Checkpoint tracking
 
 let currentCheckpoint = null;
@@ -628,15 +685,11 @@ function setUpload(pct, label) {
 
     progressModal.style.opacity = '1';
 
-    // Clear console and reset step tracking
+    // Clear stream preview and reset stats
 
-    if (progressConsole) {
+    hideModalError(); // This resets the error state
 
-      progressConsole.innerHTML = '';
-
-      currentStepElement = null;
-
-    }
+    updateLiveStats(''); // Reset stats to 0
 
     // Reset checkpoints
 
@@ -654,15 +707,6 @@ function setUpload(pct, label) {
 
   
   
-  // Clear streaming content when progress resets or starts fresh
-
-  if (pct <= 0 && progressConsole) {
-
-    const streamingContent = progressConsole.querySelector('.streaming-content');
-
-    if (streamingContent) streamingContent.remove();
-
-  }
 
   if (pct <= 0 && !progressModal.classList.contains('hidden')) {
 
@@ -672,27 +716,16 @@ function setUpload(pct, label) {
 
       progressModal.classList.add('hidden');
 
-      if (progressConsole) {
+      hideModalError(); // Also reset on close
 
-        progressConsole.innerHTML = '';
-
-      }
-
-      // Reset checkpoints
-
-      document.querySelectorAll('.checkpoint').forEach(cp => {
-
-        cp.classList.remove('active', 'completed');
-
-      });
-
-      currentCheckpoint = null;
-
-      updateCheckpointProgress(0);
       
+
       // Clear ETA timer
+
       if (etaTimer) clearInterval(etaTimer);
+
       const etaEl = document.getElementById('progressETA');
+
       if (etaEl) etaEl.style.display = 'none';
 
     }, 300);
@@ -769,223 +802,197 @@ function setUpload(pct, label) {
 
 function parseServerLine(line) {
 
-  const l = line.toLowerCase().trim();
-
   const originalLine = line.trim();
 
-  
-  
-  // Skip empty lines
-
   if (!originalLine) return;
-  
-  
 
-  // Handle file saved notice from server (pre-upload optimization)
-  if (originalLine.startsWith('[Notice] File saved to:')) {
-    const path = originalLine.split(': ')[1].trim();
-    savedVideoPath = path;
-    console.log('Server has pre-saved the video to:', savedVideoPath);
-    return; // Don't log this to the user's console
+
+
+  const streamPreview = document.getElementById('progressStreamPreview');
+
+
+
+  // --- 1. Check for Errors FIRST ---
+
+  if (originalLine.startsWith('[Error]')) {
+
+    showModalError(originalLine); // Trigger the error state
+
+    return; // Stop processing
+
   }
 
-  // Handle ETA notice
-  if (originalLine.startsWith('[Notice] ETA:')) {
-    try {
-      const totalSeconds = parseInt(originalLine.split(': ')[1].trim(), 10);
-      if (totalSeconds > 0) {
-        const etaEl = document.getElementById('progressETA');
-        const startTime = Date.now();
-        if (etaTimer) clearInterval(etaTimer);
 
-        const updateTimer = () => {
-          const elapsed = Math.floor((Date.now() - startTime) / 1000);
-          const remaining = totalSeconds - elapsed;
 
-          if (remaining <= 0) {
-            if(etaEl) etaEl.textContent = 'Finishing up...';
-            clearInterval(etaTimer);
-            etaTimer = null;
-          } else {
-            const minutes = Math.floor(remaining / 60);
-            const seconds = remaining % 60;
-            if(etaEl) etaEl.textContent = `Estimated time remaining: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-          }
-        };
+  // --- 2. Check for Server Commands ---
 
-        updateTimer(); // Run once immediately
-        if(etaEl) etaEl.style.display = 'block';
-        etaTimer = setInterval(updateTimer, 1000);
-      }
-    } catch (e) { console.warn('Could not parse ETA', e); }
-    return; // Don't log this to the console
-  }
+  if (originalLine.startsWith('[Notice]')) {
 
-  // Handle queue position messages specifically (both initial and updated positions)
-  if (originalLine.startsWith('[Notice]') && (l.includes('queued') || l.includes('queue position updated')) && l.includes('position')) {
-    const positionMatch = originalLine.match(/position:?\s*(\d+)/i) || originalLine.match(/Position:?\s*(\d+)/i);
-    const position = positionMatch ? parseInt(positionMatch[1], 10) : null;
+    const l = originalLine.toLowerCase();
+
     
-    if (position !== null) {
-      // Store current position for countdown display
-      window.currentQueuePosition = position;
-      
-      // Create visual format: "1-2-3-4-5-6" showing positions, with current highlighted
-      let positionText = '';
-      if (position <= 6) {
-        // Show sequence format: "1-2-3" where current position is included
-        const sequence = [];
-        for (let i = 1; i <= position; i++) {
-          sequence.push(i.toString());
+
+    // (ETA logic)
+
+    if (l.includes('eta:')) {
+
+      try {
+
+        const totalSeconds = parseInt(originalLine.match(/ETA:\s*(\d+)/i)[1], 10);
+
+        if (totalSeconds > 0) {
+
+          const etaEl = document.getElementById('progressETA');
+
+          const startTime = Date.now();
+
+          if (etaTimer) clearInterval(etaTimer);
+
+          
+
+          const updateTimer = () => {
+
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+
+            const remaining = totalSeconds - elapsed;
+
+
+
+            if (remaining <= 0) {
+
+              if(etaEl) etaEl.textContent = 'Finishing up...';
+
+              clearInterval(etaTimer);
+
+              etaTimer = null;
+
+            } else {
+
+              const minutes = Math.floor(remaining / 60);
+
+              const seconds = remaining % 60;
+
+              if(etaEl) etaEl.textContent = `Estimated time remaining: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+            }
+
+          };
+
+          updateTimer(); // Run once immediately
+
+          if(etaEl) etaEl.style.display = 'block';
+
+          etaTimer = setInterval(updateTimer, 1000);
+
         }
-        positionText = sequence.join('-');
-        if (position === 1) {
-          positionText += ' → Starting soon...';
-        }
+
+      } catch (e) { console.warn('Could not parse ETA', e); }
+
+      return; // This was an ETA command, do nothing else
+
+    }
+
+    
+
+    if (l.includes('queued') || l.includes('queue position')) {
+
+      const positionMatch = originalLine.match(/position:?\s*(\d+)/i);
+
+      const position = positionMatch ? parseInt(positionMatch[1], 10) : null;
+
+      if (position !== null) {
+
+        setUpload(5, `Queued… Position: ${position}`);
+
       } else {
-        positionText = `Position: ${position}`;
+
+        setUpload(5, 'Queued…');
+
       }
-      
-      // Update progress with current position
-      setUpload(5, `Queued… Position: ${positionText}`);
-      updateStep(`Queued. Waiting in line... Position: ${positionText}`);
-      addConsoleLog(`[Notice] Queue position: ${positionText}`);
-    return;
 
-    }
-  }
+      activateCheckpoint('upload');
 
-  
-  
-  // Handle other notice/error markers
-
-  if (originalLine.startsWith('[Notice]') || originalLine.startsWith('[Error]')) {
-
-    addConsoleLog(originalLine);
-
-    return;
-
-  }
-
-  
-  
-  // Update progress and steps based on server messages (general queue check - less specific)
-
-  if ((l.includes('queued') || l.includes('queue')) && !l.includes('position')) {
-
-    setUpload(5, 'Queued…');
-
-    updateStep('Queued. Waiting in line...');
-
-  }
-
-  if (l.includes('downloading youtube video') || l.includes('downloading video')) { 
-
-    setUpload(12, 'Downloading video…');
-
-    updateStep('Downloading video from YouTube...');
-
-    activateCheckpoint('upload'); // Always activate upload checkpoint for YouTube downloads
-
-    updateCheckpointProgress(20); // Start of upload checkpoint
-
-  }
-
-  if (l.includes('download complete')) { 
-
-    setUpload(15, 'Download complete.');
-
-    updateStep('Video downloaded successfully', true);
-
-    setTimeout(() => updateStep('Preparing video for analysis...'), 500);
-
-  }
-
-  if (l.includes('uploading video to gemini') || l.includes('uploading video') || l.includes('submitting')) { 
-
-    setUpload(20, 'Uploading to Gemini…');
-
-    updateStep('Uploading video to Gemini...');
-
-    activateCheckpoint('upload'); // Always activate upload checkpoint (for both local files and YouTube)
-
-    updateCheckpointProgress(40); // Mid-upload progress
-
-  }
-
-  if (l.includes('upload complete')) {
-
-    setUpload(30, 'Upload complete. Processing...');
-
-    updateStep('Video uploaded successfully', true);
-
-    activateCheckpoint('process');
-
-    updateCheckpointProgress(40); // Transition from upload to process (2nd checkpoint out of 5 = 40%)
-
-    setTimeout(() => updateStep('Processing video file...'), 500);
-
-  }
-
-  if (l.includes('waiting for gemini') || l.includes('processing the file') || l.includes('waiting for')) { 
-
-    setUpload(45, 'Waiting for ACTIVE…');
-
-    updateStep('Waiting for Gemini to process video...');
-
-    // Keep on process checkpoint during waiting
-
-    if (!currentCheckpoint || currentCheckpoint === 'upload') activateCheckpoint('process');
-
-  }
-
-  if (l.includes('file is active') || (l.includes('active') && !l.includes('waiting'))) { 
-
-    setUpload(65, 'ACTIVE. Analyzing…');
-
-    updateStep('Video processing complete', true);
-
-    activateCheckpoint('analyze');
-
-    updateCheckpointProgress(60); // Transition to analyze checkpoint (3rd out of 5 = 60%)
-
-    setTimeout(() => updateStep('Starting AI analysis...'), 500);
-
-  }
-
-  if (l.includes('starting analysis') || l.includes('gemini 2.5 pro')) { 
-
-    setUpload(78, 'Streaming…');
-
-    updateStep('Analyzing video with AI...');
-
-    activateCheckpoint('analyze');
-
-    // Clear any previous streaming content
-
-    if (progressConsole) {
-
-      const streamingContent = progressConsole.querySelector('.streaming-content');
-
-      if (streamingContent) streamingContent.remove();
+      return;
 
     }
 
+    
+
+    // (Checkpoint logic)
+
+    if (l.includes('downloading youtube video')) {
+
+      setUpload(12, 'Downloading…');
+
+      activateCheckpoint('upload');
+
+    } else if (l.includes('uploading video to gemini')) {
+
+      setUpload(20, 'Uploading to Gemini…');
+
+      activateCheckpoint('upload');
+
+    } else if (l.includes('upload complete')) {
+
+      setUpload(30, 'Upload complete.');
+
+      activateCheckpoint('process');
+
+    } else if (l.includes('waiting for gemini')) {
+
+      setUpload(45, 'Processing video…');
+
+      activateCheckpoint('process');
+
+    } else if (l.includes('file is active')) {
+
+      setUpload(65, 'File is ACTIVE. Analyzing…');
+
+      activateCheckpoint('analyze');
+
+      if (streamPreview && streamPreview.textContent.includes('Waiting')) streamPreview.innerHTML = '';
+
+    } else if (l.includes('analysis complete')) {
+
+      setUpload(95, 'Analysis complete!');
+
+      activateCheckpoint('complete');
+
+    } else if (l.includes('finalizing')) {
+
+      setUpload(97, 'Finalizing...');
+
+      activateCheckpoint('finalize');
+
+    } else if (l.includes('complete ✓')) {
+
+      setUpload(100, 'Complete ✓');
+
+      activateCheckpoint('finalize');
+
+    }
+
+    return;
+
   }
 
-  if (l.includes('streaming') && !l.includes('starting')) {
 
-    // Already showing streaming, just update progress
 
-    setUpload(78, 'Streaming…');
+  // --- 3. If it's not a command or error, it's AI Text ---
 
-  }
+  if (streamPreview) {
 
-  if (l.includes('error') || l.includes('failed')) {
+    if (streamPreview.textContent.includes('Waiting for AI stream...')) {
 
-    updateStep('Error occurred', true, true);
+      streamPreview.innerHTML = '';
 
-    addConsoleLog(`[Error] ${originalLine}`);
+    }
+
+    streamPreview.appendChild(document.createTextNode(line));
+
+    streamPreview.scrollTop = streamPreview.scrollHeight;
+
+    updateLiveStats(streamPreview.textContent);
 
   }
 
@@ -2104,6 +2111,9 @@ async function performAnalysis(prompt, url, file) {
       activateCheckpoint('finalize');
       updateCheckpointProgress(90);
 
+      // Wait a moment for the server to finish saving to database
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       // Just reload the history list
       await renderHistory(historySearch ? historySearch.value : '');
 
@@ -2283,6 +2293,16 @@ async function performAnalysis(prompt, url, file) {
     console.error('Analysis error:', err);
     
     
+    // After errors, wait a bit for server to save failed job, then reload history
+    if (!isNetworkError) {
+      setTimeout(async () => {
+        try {
+          await renderHistory(historySearch ? historySearch.value : '');
+        } catch (historyErr) {
+          console.error('Failed to reload history after error:', historyErr);
+        }
+      }, 2000);
+    }
 
     // Re-throw the error so retry logic can handle it
 
@@ -2302,7 +2322,31 @@ async function performAnalysis(prompt, url, file) {
 
 closeProgressModal?.addEventListener('click', () => {
 
+  hideModalError(); // Ensure error state is cleared
+
   setUpload(0, 'Idle');
+
+});
+
+
+
+// --- NEW: Retry Button Listener ---
+
+modalRetryBtn?.addEventListener('click', () => {
+
+  console.log('Retry button clicked.');
+
+  // Hide the error state
+
+  hideModalError();
+
+  // Set modal to a "retrying" state
+
+  setUpload(10, 'Retrying…');
+
+  // Call the main handleSubmit function again
+
+  handleSubmit();
 
 });
 

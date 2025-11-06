@@ -219,23 +219,14 @@
   <div id="progressModal" class="progress-modal hidden">
     <div class="progress-modal-content glass">
       <button id="closeProgressModal" class="progress-modal-close" aria-label="Close" title="Close">×</button>
+      
       <div class="progress-spinner">
-        <span class="dot"></span>
-        <span class="dot"></span>
-        <span class="dot"></span>
+        <div class="spinner-circle"></div>
       </div>
       <h3 id="progressStatus" class="progress-status-text">Submitting...</h3>
-      <h4 id="progressETA" class="progress-eta-text muted" style="display: none; font-size: 16px; font-weight: 500; color: var(--muted); margin-top: -10px; margin-bottom: 10px; text-align: center;"></h4>
+      <h4 id="progressETA" class="progress-eta-text muted" style="display: none;"></h4>
       
-      <div class="progress-section">
-        <label class="progress-label">Overall Progress</label>
-        <div class="progress-linear">
-          <div id="progressLinearBar" class="progress-linear-meter"></div>
-        </div>
-      </div>
-      
-      <div class="progress-section">
-        <label class="progress-label">Analysis Progress</label>
+      <div class="progress-section" style="width: 100%;">
         <div class="checkpoints-container">
           <div class="checkpoint-track">
             <div class="checkpoint-progress-bar">
@@ -275,8 +266,34 @@
             </div>
           </div>
         </div>
-        <div id="progressConsole" class="progress-console"></div>
       </div>
+
+      <div class="progress-live-stats">
+        <div class="live-stat-card">
+          <span class="live-stat-value" id="stat-words-analyzed">0</span>
+          <span class="live-stat-label">Words Analyzed</span>
+        </div>
+        <div class="live-stat-card">
+          <span class="live-stat-value" id="stat-timestamps-found">0</span>
+          <span class="live-stat-label">Timestamps Found</span>
+        </div>
+        <div class="live-stat-card">
+          <span class="live-stat-value" id="stat-categories-found">0</span>
+          <span class="live-stat-label">Categories Found</span>
+        </div>
+      </div>
+
+      <div class="progress-section" style="width: 100%;">
+        <label class="progress-label">Live AI Stream</label>
+        <div id="progressStreamPreview" class="progress-console">
+          <span class="muted">Waiting for AI stream...</span>
+        </div>
+      </div>
+
+      <button id="modalRetryBtn" class="btn primary hidden" type="button" style="width: 100%; margin-top: 20px;">
+        Retry Analysis
+      </button>
+
     </div>
   </div>
 
