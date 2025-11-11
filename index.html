@@ -214,39 +214,88 @@
 
   <div id="progressModal" class="progress-modal hidden">
     <div class="progress-modal-content glass">
-      <button id="closeProgressModal" class="progress-modal-close" aria-label="Close" title="Close">×</button>
-      
-      <div class="progress-spinner">
-        <div class="spinner-circle"></div>
-      </div>
-      <h3 id="progressStatus" class="progress-status-text">Submitting...</h3>
-      <h4 id="progressETA" class="progress-eta-text muted" style="display: none;"></h4>
-        <div id="uploadMetrics" class="progress-section hidden" style="width: 100%; margin-top: 16px;">
-          <label class="progress-label" style="margin-bottom: 8px;">Upload Progress</label>
-          <div class="live-stat-card" style="padding: 12px 16px; background: rgba(0,0,0,0.2); align-items: stretch; gap: 8px;">
-            <div style="width: 100%; display: flex; justify-content: space-between; font-size: 14px; color: var(--text);">
+      <div class="progress-card">
+        <div class="progress-card-header">
+          <div class="progress-card-title">
+            <h3 id="progressStatus" class="progress-status-text">Submitting...</h3>
+            <p id="progressETA" class="progress-eta-text muted" style="display: none;">Estimated time remaining: —</p>
+          </div>
+          <button id="closeProgressModal" class="progress-modal-close" aria-label="Close" title="Close">×</button>
+        </div>
+
+        <div id="uploadMetrics" class="progress-section hidden">
+          <label class="progress-label">Upload Progress</label>
+          <div class="progress-upload-card">
+            <div class="progress-upload-row">
               <span id="uploadProgressText">0 MB / 0 MB</span>
-              <span id="uploadSpeedText" style="color: var(--ok); font-weight: 600;">0 MB/s</span>
+              <span id="uploadSpeedText" class="upload-speed">0 MB/s</span>
             </div>
-            <div class="progress-linear" style="height: 8px; width: 100%;">
-              <div id="uploadProgressBar" class="progress-linear-meter" style="width: 0%; background: var(--brand); transition: width 0.1s linear;"></div>
+            <div class="progress-linear">
+              <div id="uploadProgressBar" class="progress-linear-meter"></div>
             </div>
-            <div style="width: 100%; font-size: 12px; color: var(--muted); text-align: right;">
-              <span id="uploadRemainingText">... MB left</span>
+            <div class="progress-upload-remaining">
+              <span id="uploadRemainingText">0 MB left</span>
             </div>
           </div>
         </div>
-      <div class="progress-section" style="width: 100%;">
-        <label class="progress-label">Live AI Stream</label>
+
+        <div class="checkpoint-track-wrapper">
+          <div class="checkpoint-progress-bar">
+            <div id="checkpointProgressBar" class="checkpoint-progress-fill"></div>
+          </div>
+          <div class="checkpoints">
+            <div class="checkpoint" data-checkpoint="upload">
+              <div class="checkpoint-icon">
+                <div class="checkpoint-dot"></div>
+              </div>
+              <span class="checkpoint-label">Upload</span>
+            </div>
+            <div class="checkpoint" data-checkpoint="process">
+              <div class="checkpoint-icon">
+                <div class="checkpoint-dot"></div>
+              </div>
+              <span class="checkpoint-label">Process</span>
+            </div>
+            <div class="checkpoint" data-checkpoint="analyze">
+              <div class="checkpoint-icon">
+                <div class="checkpoint-dot"></div>
+              </div>
+              <span class="checkpoint-label">Analyze</span>
+            </div>
+            <div class="checkpoint" data-checkpoint="complete">
+              <div class="checkpoint-icon">
+                <div class="checkpoint-dot"></div>
+              </div>
+              <span class="checkpoint-label">Complete</span>
+            </div>
+            <div class="checkpoint" data-checkpoint="finalize">
+              <div class="checkpoint-icon">
+                <div class="checkpoint-dot"></div>
+              </div>
+              <span class="checkpoint-label">Finalize</span>
+            </div>
+          </div>
+        </div>
+
+        <button id="toggleProgressDetails" class="btn ghost small" type="button">
+          Show Details
+        </button>
+      </div>
+
+      <div id="progressDetailsPanel" class="progress-details-panel hidden">
+        <div class="progress-details-header">
+          <span class="progress-label">Live AI Stream</span>
+        </div>
         <div id="progressStreamPreview" class="progress-console">
-          <span class="muted">Waiting for AI stream...</span>
+          <div id="progressConsole">
+            <span class="muted">Waiting for AI stream...</span>
+          </div>
         </div>
       </div>
 
-      <button id="modalRetryBtn" class="btn primary hidden" type="button" style="width: 100%; margin-top: 20px;">
+      <button id="modalRetryBtn" class="btn primary hidden" type="button">
         Retry Analysis
       </button>
-
     </div>
   </div>
 

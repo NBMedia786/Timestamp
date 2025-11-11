@@ -789,84 +789,177 @@ body {
   padding: 32px 40px; 
   display: flex; 
   flex-direction: column; 
-  align-items: center; 
+  align-items: stretch;
   gap: 20px; 
   width: 640px;
   max-width: 90vw;
-  min-height: 400px;
+  min-height: 420px;
   position: relative;
 }
+
 .progress-modal-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   color: var(--text);
-  font-size: 28px;
+  font-size: 26px;
   line-height: 1;
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  z-index: 10;
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
+
 .progress-modal-close:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: var(--brand);
-  color: var(--brand);
-  transform: scale(1.1);
+  transform: translateY(-1px);
+  background: rgba(124, 196, 255, 0.2);
 }
+
 .progress-modal-close:active {
-  transform: scale(0.95);
+  transform: translateY(0);
 }
 
-/* Progress Spinner */
-.progress-spinner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 48px;
+.progress-card {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  background: rgba(12, 16, 27, 0.8);
+  border: 1px solid rgba(124, 196, 255, 0.12);
+  border-radius: 18px;
+  padding: 28px 30px;
+  box-shadow: 0 16px 40px rgba(6, 8, 15, 0.48);
+  backdrop-filter: blur(26px);
 }
 
-.progress-spinner .spinner-circle {
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgba(124, 196, 255, 0.2);
-  border-top-color: var(--brand);
-  border-radius: 50%;
-  animation: spinnerRotate 0.8s linear infinite;
+.progress-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
 }
 
-@keyframes spinnerRotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+.progress-card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-/* Progress Status Text */
+.progress-card-title h3 {
+  margin: 0;
+}
+
+.progress-card-title p {
+  margin: 0;
+  font-size: 14px;
+}
+
 .progress-status-text {
   font-size: 24px;
   font-weight: 700;
   color: var(--text);
   margin: 0;
-  text-align: center;
 }
 
-/* Progress Section */
+.progress-eta-text {
+  font-size: 14px;
+  color: var(--muted);
+}
+
 .progress-section {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.progress-upload-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 15px 18px;
+  border-radius: 12px;
+  background: rgba(8, 12, 21, 0.8);
+  border: 1px solid rgba(124, 196, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(124, 196, 255, 0.05);
+}
+
+.progress-upload-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.progress-upload-row span:first-child {
+  font-weight: 600;
+}
+
+.upload-speed {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.progress-upload-remaining {
+  text-align: right;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.checkpoint-track-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 6px 6px 0;
+}
+
+.progress-details-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: rgba(8, 12, 21, 0.82);
+  border: 1px solid rgba(124, 196, 255, 0.1);
+}
+
+.progress-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn.small {
+  align-self: flex-start;
+  padding: 8px 16px;
+  font-size: 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(124, 196, 255, 0.25);
+  color: var(--muted);
+  transition: border 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.btn.small:hover {
+  border-color: rgba(124, 196, 255, 0.45);
+  color: var(--text);
+  background: rgba(124, 196, 255, 0.08);
+}
+
+.btn.small::after {
+  content: '⌄';
+  margin-left: 6px;
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.btn.small.expanded::after {
+  transform: rotate(180deg);
 }
 
 .progress-label {
@@ -876,33 +969,21 @@ body {
   text-align: left;
 }
 
-/* Checkpoints Container */
-.checkpoints-container {
-  width: 100%;
-  margin-bottom: 16px;
-}
-
-.checkpoint-track {
-  position: relative;
-  padding: 20px 0 40px 0;
-}
-
+/* Checkpoint Track */
 .checkpoint-progress-bar {
-  position: absolute;
-  top: 34px;
-  left: 0;
-  right: 0;
-  height: 3px;
+  width: 100%;
+  height: 4px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 999px;
   overflow: hidden;
-  z-index: 1;
+  position: relative;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .progress-linear {
   width: 100%;
   height: 6px;
-  background-color: var(--bg-dark);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 3px;
   overflow: hidden;
   margin-top: 10px;
@@ -911,7 +992,7 @@ body {
 .progress-linear-meter {
   height: 100%;
   width: 0%;
-  background-color: var(--brand);
+  background: linear-gradient(90deg, var(--brand-2), var(--brand));
   border-radius: 3px;
   transition: width 0.3s ease-out;
 }
@@ -2427,13 +2508,15 @@ body {
 }
 
 /* ================= Modal Error State ================= */
-.progress-modal-content.error-state .progress-spinner,
-.progress-modal-content.error-state .progress-section {
-  display: none; /* Hide spinner and progress sections */
+.progress-modal-content.error-state #uploadMetrics,
+.progress-modal-content.error-state .progress-upload-card,
+.progress-modal-content.error-state .checkpoint-track-wrapper,
+.progress-modal-content.error-state #toggleProgressDetails {
+  display: none !important;
 }
 
-.progress-modal-content.error-state .progress-live-stats {
-  display: none; /* Hide live stats */
+.progress-modal-content.error-state .progress-details-panel {
+  display: flex !important;
 }
 
 .progress-modal-content.error-state .progress-status-text {
@@ -2460,8 +2543,4 @@ body {
   white-space: pre-wrap;
 }
 
-/* Make upload metrics visible when modal is open */
-.progress-modal:not(.hidden) #uploadMetrics {
-  display: flex !important;
-  flex-direction: column;
-}
+/* Upload metrics controlled by JS */

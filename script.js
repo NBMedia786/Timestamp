@@ -47,6 +47,10 @@ const uploadRemainingText = document.getElementById('uploadRemainingText');
 
 const uploadProgressBar = document.getElementById('uploadProgressBar');
 
+const progressDetailsPanel = document.getElementById('progressDetailsPanel');
+
+const toggleProgressDetailsBtn = document.getElementById('toggleProgressDetails');
+
 
 
 const resultsPre = document.getElementById('results');
@@ -128,6 +132,8 @@ const TOTAL_STORAGE_BYTES = 20 * 1024 * 1024 * 1024; // 20 GB
 let uploadTriggered = false;
 
 let etaTimer = null;
+
+let progressDetailsExpanded = false;
 
 
 
@@ -522,6 +528,11 @@ function showModalError(errorMessage) {
   }
   
   if (etaTimer) clearInterval(etaTimer);
+
+  if (toggleProgressDetailsBtn) {
+    toggleProgressDetailsBtn.disabled = true;
+  }
+  setProgressDetailsVisibility(true);
 }
 
 // NEW HELPER: Hides the modal error state
@@ -534,6 +545,10 @@ function hideModalError() {
   if (streamPreview) {
     streamPreview.innerHTML = '<span class="muted">Waiting for AI stream...</span>';
   }
+  if (toggleProgressDetailsBtn) {
+    toggleProgressDetailsBtn.disabled = false;
+  }
+  setProgressDetailsVisibility(false);
 }
 
 const uploadStats = {
@@ -645,6 +660,24 @@ function resetUploadMetrics() {
   if (uploadSpeedText) uploadSpeedText.textContent = '0 MB/s';
   if (uploadRemainingText) uploadRemainingText.textContent = '0 MB left';
   if (uploadProgressBar) uploadProgressBar.style.width = '0%';
+}
+
+function setProgressDetailsVisibility(show) {
+  progressDetailsExpanded = !!show;
+  if (!progressDetailsPanel) return;
+  if (progressDetailsExpanded) {
+    progressDetailsPanel.classList.remove('hidden');
+    if (toggleProgressDetailsBtn) {
+      toggleProgressDetailsBtn.classList.add('expanded');
+      toggleProgressDetailsBtn.textContent = 'Hide Details';
+    }
+  } else {
+    progressDetailsPanel.classList.add('hidden');
+    if (toggleProgressDetailsBtn) {
+      toggleProgressDetailsBtn.classList.remove('expanded');
+      toggleProgressDetailsBtn.textContent = 'Show Details';
+    }
+  }
 }
 
 // Checkpoint tracking
@@ -850,8 +883,10 @@ function setUpload(percent, statusText = '', etaText = '') {
         currentCheckpoint = null;
         document.querySelectorAll('.checkpoint').forEach(cp => cp.classList.remove('active', 'completed'));
         updateCheckpointProgress(0);
+        setProgressDetailsVisibility(false);
       }, 300);
     }
+    progressDetailsExpanded = false;
     return;
   }
 
@@ -862,6 +897,8 @@ function setUpload(percent, statusText = '', etaText = '') {
     updateLiveStats('');
     currentCheckpoint = null;
     document.querySelectorAll('.checkpoint').forEach(cp => cp.classList.remove('active', 'completed'));
+    progressDetailsExpanded = false;
+    setProgressDetailsVisibility(false);
   }
 
   if (progressStatus && statusText) {
@@ -1282,6 +1319,12 @@ dropZone.addEventListener('drop', (e) => {
   }
 
 });
+
+toggleProgressDetailsBtn?.addEventListener('click', () => {
+  setProgressDetailsVisibility(!progressDetailsExpanded);
+});
+
+setProgressDetailsVisibility(false);
 
 
 
