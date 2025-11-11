@@ -27,7 +27,7 @@ const progressModal = document.getElementById('progressModal');
 
 const progressStatus = document.getElementById('progressStatus');
 
-const progressLinearBar = document.getElementById('progressLinearBar');
+const progressETA = document.getElementById('progressETA');
 
 const progressConsole = document.getElementById('progressConsole');
 
@@ -44,6 +44,8 @@ const uploadProgressText = document.getElementById('uploadProgressText');
 const uploadSpeedText = document.getElementById('uploadSpeedText');
 
 const uploadRemainingText = document.getElementById('uploadRemainingText');
+
+const uploadProgressBar = document.getElementById('uploadProgressBar');
 
 
 
@@ -574,7 +576,7 @@ function formatSpeed(bytesPerSecond) {
   return `${value.toFixed(decimals)} ${units[index]}`;
 }
 
-function showUploadMetrics(totalBytes = 0) {
+function showUploadMetrics(totalBytes) {
   uploadStats.active = true;
   uploadStats.totalBytes = totalBytes;
   uploadStats.lastLoaded = 0;
@@ -586,14 +588,12 @@ function showUploadMetrics(totalBytes = 0) {
     const remaining = totalBytes ? formatBytesPrecise(totalBytes) : '—';
     uploadRemainingText.textContent = `${remaining} left`;
   }
+  if (uploadProgressBar) uploadProgressBar.style.width = '0%';
 }
 
-function updateUploadMetrics(loaded, total) {
+function updateUploadMetrics(loaded, totalBytes) {
   if (!uploadStats.active) return;
-  if (typeof total === 'number' && total > 0) {
-    uploadStats.totalBytes = total;
-  }
-  const totalBytes = uploadStats.totalBytes || total || 0;
+
   const now = getNowMs();
   const deltaBytes = Math.max(loaded - uploadStats.lastLoaded, 0);
   const deltaSeconds = Math.max((now - (uploadStats.lastTimestamp || now)) / 1000, 0.001);
@@ -612,6 +612,10 @@ function updateUploadMetrics(loaded, total) {
     const remainingBytes = totalBytes ? Math.max(totalBytes - loaded, 0) : 0;
     uploadRemainingText.textContent = totalBytes ? `${formatBytesPrecise(remainingBytes)} left` : '— left';
   }
+  if (uploadProgressBar && totalBytes) {
+    const percent = Math.max(0, Math.min(100, (loaded / totalBytes) * 100));
+    uploadProgressBar.style.width = `${percent}%`;
+  }
 }
 
 function finalizeUploadMetrics() {
@@ -626,6 +630,7 @@ function finalizeUploadMetrics() {
   if (uploadRemainingText) {
     uploadRemainingText.textContent = '0 MB left';
   }
+  if (uploadProgressBar) uploadProgressBar.style.width = '100%';
 }
 
 function resetUploadMetrics() {
@@ -639,6 +644,7 @@ function resetUploadMetrics() {
   if (uploadProgressText) uploadProgressText.textContent = '0 MB / 0 MB';
   if (uploadSpeedText) uploadSpeedText.textContent = '0 MB/s';
   if (uploadRemainingText) uploadRemainingText.textContent = '0 MB left';
+  if (uploadProgressBar) uploadProgressBar.style.width = '0%';
 }
 
 // Checkpoint tracking
@@ -653,11 +659,41 @@ const checkpointProgressBar = document.getElementById('checkpointProgressBar');
 
 function updateCheckpointProgress(percentage) {
 
-  if (checkpointProgressBar) {
+  if (!checkpointProgressBar) return;
 
-    checkpointProgressBar.style.width = `${percentage}%`;
+  const clampedPercent = Math.max(0, Math.min(100, Number(percentage) || 0));
 
-  }
+  checkpointProgressBar.style.width = `${clampedPercent}%`;
+
+  const thresholds = {
+
+    upload: 1,
+
+    process: 35,
+
+    analyze: 60,
+
+    complete: 90,
+
+    finalize: 98,
+
+  };
+
+  document.querySelectorAll('.checkpoint').forEach(cp => {
+
+    const name = cp.getAttribute('data-checkpoint');
+
+    if (thresholds[name] !== undefined && clampedPercent >= thresholds[name]) {
+
+      cp.classList.add('active');
+
+    } else {
+
+      cp.classList.remove('active');
+
+    }
+
+  });
 
 }
 
@@ -793,122 +829,56 @@ function setDeleteProgress(percent, status, subStatus) {
 
 // New progress modal controller
 
-function setUpload(pct, label) {
+function setUpload(percent, statusText = '', etaText = '') {
+  if (!progressModal) return;
 
-  if (pct > 0 && progressModal.classList.contains('hidden')) {
+  const numericPercent = Number(percent);
+  const clampedPercent = Math.max(0, Math.min(100, isFinite(numericPercent) ? numericPercent : 0));
 
+  if (clampedPercent <= 0) {
+    if (!progressModal.classList.contains('hidden')) {
+      progressModal.style.opacity = '0';
+      setTimeout(() => {
+        progressModal.classList.add('hidden');
+        hideModalError();
+        resetUploadMetrics();
+        if (etaTimer) clearInterval(etaTimer);
+        if (progressETA) {
+          progressETA.textContent = '';
+          progressETA.style.display = 'none';
+        }
+        currentCheckpoint = null;
+        document.querySelectorAll('.checkpoint').forEach(cp => cp.classList.remove('active', 'completed'));
+        updateCheckpointProgress(0);
+      }, 300);
+    }
+    return;
+  }
+
+  if (progressModal.classList.contains('hidden')) {
     progressModal.classList.remove('hidden');
-
     progressModal.style.opacity = '1';
-
-    // Clear stream preview and reset stats
-
-    hideModalError(); // This resets the error state
-
-    updateLiveStats(''); // Reset stats to 0
-
-    // Reset checkpoints
-
-    document.querySelectorAll('.checkpoint').forEach(cp => {
-
-      cp.classList.remove('active', 'completed');
-
-    });
-
+    hideModalError();
+    updateLiveStats('');
     currentCheckpoint = null;
-
-    updateCheckpointProgress(0);
-
+    document.querySelectorAll('.checkpoint').forEach(cp => cp.classList.remove('active', 'completed'));
   }
 
-  
-  
-
-  if (pct <= 0 && !progressModal.classList.contains('hidden')) {
-
-    progressModal.style.opacity = '0';
-
-    setTimeout(() => {
-
-      progressModal.classList.add('hidden');
-
-      hideModalError(); // Also reset on close
-      resetUploadMetrics();
-
-      // Clear ETA timer
-
-      if (etaTimer) clearInterval(etaTimer);
-
-      const etaEl = document.getElementById('progressETA');
-
-      if (etaEl) etaEl.style.display = 'none';
-
-    }, 300);
-
+  if (progressStatus && statusText) {
+    progressStatus.textContent = statusText;
   }
 
-  // Robust numeric coercion for pct
-
-  let numericPct = Number(pct);
-
-  if (!isFinite(numericPct)) {
-
-    const fromBar = progressLinearBar ? parseFloat(String(progressLinearBar.style.width || '0').replace('%','')) : NaN;
-
-    numericPct = isFinite(fromBar) ? fromBar : 0;
-
+  if (progressETA) {
+    if (etaText) {
+      progressETA.textContent = etaText;
+      progressETA.style.display = 'block';
+    } else {
+      progressETA.textContent = '';
+      progressETA.style.display = 'none';
+    }
   }
 
-  const cleanPct = Math.max(0, Math.min(100, numericPct));
-
-  
-  
-  if (progressLinearBar) {
-
-    progressLinearBar.style.width = `${cleanPct}%`;
-
-  }
-
-  
-  
-  // Update checkpoint progress based on overall progress
-
-  if (checkpointProgressBar && currentCheckpoint) {
-
-    // Interpolate checkpoint progress based on overall progress
-
-    const checkpoints = ['upload', 'process', 'analyze', 'complete', 'finalize'];
-
-    const currentIndex = checkpoints.indexOf(currentCheckpoint);
-
-    const baseProgress = (currentIndex / checkpoints.length) * 100;
-
-    const checkpointRange = 100 / checkpoints.length;
-
-    const withinCheckpoint = Math.min(100, Math.max(0, cleanPct - baseProgress));
-
-    const checkpointProgress = baseProgress + (withinCheckpoint / checkpointRange) * (checkpointRange);
-
-    updateCheckpointProgress(Math.min(100, checkpointProgress));
-
-  }
-
-  
-  
-  if (progressStatus && label && progressStatus.textContent !== label) {
-
-    progressStatus.classList.remove('animate-fade-in');
-
-    void progressStatus.offsetWidth;
-
-    progressStatus.textContent = label;
-
-    progressStatus.classList.add('animate-fade-in');
-
-    // Note: Console logs are added explicitly in parseServerLine to show step-by-step
-
-  }
-
+  updateCheckpointProgress(clampedPercent);
 }
 
 
@@ -1697,7 +1667,7 @@ async function performAnalysis(url, file) {
     xhr.setRequestHeader('Accept', 'text/plain');
 
     let softTimer = null;
-    let softPct = 78;
+    let softPct = 37;
     let activityTimer = null;
     let hasReceivedData = false;
     let lastActivityTime = Date.now();
@@ -1709,7 +1679,10 @@ async function performAnalysis(url, file) {
     xhr.onabort = () => {
       console.log('XHR aborted by user.');
       if (activityTimer) clearInterval(activityTimer);
-      if (softTimer) clearInterval(softTimer);
+      if (softTimer) {
+        clearInterval(softTimer);
+        softTimer = null;
+      }
       if (etaTimer) clearInterval(etaTimer);
       currentAnalysisXHR = null; // Clear global
       reject(new Error('UserAborted')); // Reject promise with special error
@@ -1719,20 +1692,13 @@ async function performAnalysis(url, file) {
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         const percent = (event.loaded / event.total) * 100;
-        // Upload phase is from 12% to 30% of overall progress
-        setUpload(12 + (percent * 0.18), 'Uploading…'); 
-        
-        // Call your existing helper functions
+        const overallPercent = 12 + (percent * 0.30);
+        setUpload(overallPercent, 'Uploading…');
+        if (uploadMetrics) uploadMetrics.classList.remove('hidden');
         if (!uploadStats.active) {
           showUploadMetrics(event.total);
         }
         updateUploadMetrics(event.loaded, event.total);
-        
-        // Update the new progress bar
-        const uploadBar = document.getElementById('uploadProgressBar');
-        if (uploadBar) {
-          uploadBar.style.width = `${percent}%`;
-        }
       }
     };
 
@@ -1751,6 +1717,7 @@ async function performAnalysis(url, file) {
     xhr.upload.onload = () => {
       // This fires when the upload *completes*
       finalizeUploadMetrics();
+      if (uploadMetrics) uploadMetrics.classList.add('hidden');
       setUpload(30, 'Upload complete.');
       activateCheckpoint('process');
     };
@@ -1800,12 +1767,14 @@ async function performAnalysis(url, file) {
       // Animate the "soft" progress bar during analysis
       if (progressStatus && (progressStatus.textContent.includes('Streaming') || progressStatus.textContent.includes('Analyzing'))) {
         if (!softTimer) {
-          const currentPct = progressLinearBar ? parseFloat(String(progressLinearBar.style.width || '78').replace('%','')) : 78;
-          softPct = Math.max(softPct, currentPct);
+          setUpload(softPct, progressStatus.textContent);
           softTimer = setInterval(() => {
-            if (softPct < 92) {
+            if (softPct < 88) {
               softPct += 1;
               setUpload(softPct, progressStatus.textContent);
+            } else {
+              clearInterval(softTimer);
+              softTimer = null;
             }
           }, 400);
         }
@@ -1820,7 +1789,10 @@ async function performAnalysis(url, file) {
       currentAnalysisXHR = null; // Clear global
       // This fires when the *entire* request is done (stream finished)
       if (activityTimer) clearInterval(activityTimer);
-      if (softTimer) clearInterval(softTimer);
+      if (softTimer) {
+        clearInterval(softTimer);
+        softTimer = null;
+      }
       if (etaTimer) clearInterval(etaTimer);
       
       const etaEl = document.getElementById('progressETA');
@@ -1930,7 +1902,10 @@ async function performAnalysis(url, file) {
     xhr.onerror = () => {
       currentAnalysisXHR = null; // Clear global
       if (activityTimer) clearInterval(activityTimer);
-      if (softTimer) clearInterval(softTimer);
+      if (softTimer) {
+        clearInterval(softTimer);
+        softTimer = null;
+      }
       updateStep('Connection failed', true, true);
       addConsoleLog(`[Error] Network error: Failed to connect.`);
       showToast(`Failed to connect to server.`);
@@ -1940,7 +1915,10 @@ async function performAnalysis(url, file) {
     xhr.ontimeout = () => {
       currentAnalysisXHR = null; // Clear global
       if (activityTimer) clearInterval(activityTimer);
-      if (softTimer) clearInterval(softTimer);
+      if (softTimer) {
+        clearInterval(softTimer);
+        softTimer = null;
+      }
       updateStep('Connection timed out', true, true);
       addConsoleLog(`[Error] Connection timeout.`);
       showToast(`Connection timed out.`);
@@ -1954,7 +1932,10 @@ async function performAnalysis(url, file) {
       
       if (timeSinceActivity > ACTIVITY_TIMEOUT) {
         clearInterval(activityTimer);
-        if (softTimer) clearInterval(softTimer);
+        if (softTimer) {
+          clearInterval(softTimer);
+          softTimer = null;
+        }
         updateStep('Analysis timed out. Please try again.', true, true);
         addConsoleLog(`[Error] Timeout: No activity from server for ${minutesSinceActivity} minutes`);
         showToast('Analysis timed out. Please try again.');
@@ -1966,7 +1947,7 @@ async function performAnalysis(url, file) {
           updateStep(`Waiting for Gemini... (${minutesSinceActivity} minutes)`);
         }
       }
-    }, 30000); // Check every 30 seconds
+    }, 300000000000000); // Check every 30 seconds
 
     // --- 6. Send the request ---
     console.log('Sending XHR request...');

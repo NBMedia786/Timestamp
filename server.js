@@ -898,7 +898,7 @@ async function downloadYouTube(url) {
 
 // ---------- Gemini ----------
 
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY, { agent: keepAliveAgent });
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY, { agent: keepAliveAgent, timeout: 10 * 60 * 1000 });
 const fileManager = new GoogleAIFileManager(GEMINI_API_KEY, { agent: keepAliveAgent });
 const MODEL = 'gemini-2.5-pro';
 
