@@ -1,0 +1,66 @@
+# .dockerignore - Exclude unnecessary files from Docker build context
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# Keep package-lock.json for reproducible builds with npm ci
+
+# Environment files (should be provided at runtime)
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Testing
+coverage/
+.nyc_output/
+*.test.js
+*.spec.js
+
+# Documentation
+*.md
+!README.md
+
+# Data files (should be mounted as volumes)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+shared/*.mp4
+shared/*.mov
+shared/*.avi
+
+# Build artifacts
+dist/
+build/
+*.map
+
+# Deployment scripts
+deploy.sh
+*.sh
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
