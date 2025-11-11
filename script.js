@@ -11,8 +11,6 @@ const videoInput = document.getElementById('video');
 
 const urlInput = document.getElementById('url');
 
-const promptInput = document.getElementById('prompt');
-
 
 
 const dropZone = document.getElementById('dropZone');
@@ -1345,8 +1343,6 @@ dropZone.addEventListener('click', (e) => {
 
 function resetInputsOnly() {
 
-  promptInput.value = '';
-
   urlInput.value = '';
 
   videoInput.value = '';
@@ -1377,15 +1373,11 @@ function startNewAnalysis() {
 
   resetInputsOnly();
 
-  // Clear active history item
-
   document.querySelectorAll('.history-item').forEach(el => {
 
     el.classList.remove('active');
 
   });
-
-  // Switch to Analyze tab to start a new run
 
   mainTabs.forEach(b => b.classList.remove('active'));
 
@@ -1395,13 +1387,9 @@ function startNewAnalysis() {
 
   document.getElementById('tab-analyze-main').classList.add('active');
 
-  // Clear saved file references
-
   currentVideoFile = null;
 
   currentVideoFileName = null;
-
-  currentPromptText = null;
 
 }
 
@@ -1413,8 +1401,6 @@ newAnalysisBtn?.addEventListener('click', startNewAnalysis);
 
 clearBtn.addEventListener('click', () => {
 
-  promptInput.value = '';
-
   urlInput.value = '';
 
   videoInput.value = '';
@@ -1422,10 +1408,6 @@ clearBtn.addEventListener('click', () => {
   fileInfo.textContent = '';
 
   fileInfo.classList.add('hidden');
-
-  resultsPre.textContent = '';
-
-  setUpload(0, 'Idle');
 
   player.pause();
 
@@ -1437,28 +1419,11 @@ clearBtn.addEventListener('click', () => {
 
   ytWrap.classList.add('hidden');
 
-  activeTsFilter = 'all';
-
-  activeFilterPill.textContent = 'All';
-
-  buildStructuredOutputWrapper(''); // Clear structured view
-  tabs.forEach(t => t.classList.remove('active'));
-
-  tabContents.forEach(c => c.classList.remove('active'));
-
-  document.querySelector('.tab[data-tab="structured"]').classList.add('active');
-
-  document.getElementById('tab-structured').classList.add('active');
-
-  shareBtn.disabled = true;
-
-  // Clear saved file references
+  uploadTriggered = false;
 
   currentVideoFile = null;
 
   currentVideoFileName = null;
-
-  currentPromptText = null;
 
 });
 
@@ -1502,8 +1467,6 @@ let currentVideoFile = null;
 
 let currentVideoFileName = null;
 
-let currentPromptText = null;
-
 let savedVideoPath = null;
 
 
@@ -1526,17 +1489,12 @@ async function handleSubmit(e) {
 
   
   
-  const prompt = (promptInput.value || '').trim();
-
   const url = (urlInput.value || '').trim();
 
-  // Get file from input OR from currentVideoFile (set by drag-and-drop fallback or file input change)
   const file = (videoInput.files && videoInput.files[0]) || currentVideoFile;
 
-  
-  // Validate file size before submitting (2GB limit)
   if (file) {
-    const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB in bytes
+    const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
       const sizeGB = (file.size / (1024 * 1024 * 1024)).toFixed(2);
       showToast(`File size (${sizeGB} GB) exceeds the 2 GB limit. Please select a smaller file.`);
@@ -1544,27 +1502,15 @@ async function handleSubmit(e) {
       return;
     }
   }
-  
-  // Save file reference and prompt for history saving later
 
   currentVideoFile = file || null;
-
   currentVideoFileName = file?.name || null;
-
-  currentPromptText = prompt || null;
-
-
-
-  console.log('Form data:', { hasFile: !!file, hasUrl: !!url, hasPrompt: !!prompt });
-
-
 
   resultsPre.textContent = '';
 
-  setUpload(10, 'Preparing…'); // Start progress
+  setUpload(10, 'Preparing…');
 
   shareBtn.disabled = true;
-
   
   
   // Retry configuration
@@ -1583,7 +1529,7 @@ async function handleSubmit(e) {
 
       try {
 
-        await performAnalysis(prompt, url, file);
+        await performAnalysis(url, file);
 
         // Success - break out of retry loop
 
@@ -1726,7 +1672,7 @@ async function handleSubmit(e) {
 
 
 // Separate function to perform the actual analysis
-async function performAnalysis(prompt, url, file) {
+async function performAnalysis(url, file) {
 
   // This new function returns a Promise to integrate with your existing retry logic
   return new Promise((resolve, reject) => {
@@ -1734,7 +1680,6 @@ async function performAnalysis(prompt, url, file) {
     setUpload(12, 'Submitting…');
 
     const fd = new FormData();
-    fd.append('prompt', prompt || '');
     if (file) {
       fd.append('video', file);
       console.log('FormData: Added video file', file.name);
@@ -2975,7 +2920,7 @@ async function _addHistoryItem_REMOVED(analysisText) {
 
   let fileName = currentVideoFileName || file?.name;
 
-  const promptText = currentPromptText || (promptInput.value || '').trim();
+  const promptText = '';
 
   
   
