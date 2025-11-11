@@ -1494,17 +1494,6 @@ body {
   width: 100%;
   gap: 8px;
 }
-.history-item-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-}
-.history-empty {
-  padding: 32px 12px;
-  text-align: center;
-  font-size: 14px;
-  color: var(--muted);
-}
 
 .history-item-content-wrapper {
   display: flex;
@@ -2487,16 +2476,8 @@ body {
   white-space: pre-wrap;
 }
 
-/* === REPLACED upload-stats-grid styles === */
-.upload-progress-details {
-  width: 100%;
-  margin-top: 12px;
-  text-align: center;
-}
-
-.upload-details-text {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+/* Make upload metrics visible when modal is open */
+.progress-modal:not(.hidden) #uploadMetrics {
+  display: flex !important;
+  flex-direction: column;
 }

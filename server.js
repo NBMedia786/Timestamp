@@ -822,26 +822,15 @@ async function ensureYtDlp() {
   return YTDLP_BIN_PATH;
 }
 
-function spawnPromise(bin, args, { collectStderr = true, collectStdout = false } = {}) {
+function spawnPromise(bin, args, { collectStderr = true } = {}) {
   return new Promise((resolve, reject) => {
     let stderr = '';
-    let stdout = '';
-    const stdioConfig = [
-      'ignore',
-      collectStdout ? 'pipe' : 'inherit',
-      collectStderr ? 'pipe' : 'inherit'
-    ];
-    const proc = spawn(bin, args, { stdio: stdioConfig, windowsHide: true, shell: false });
-    if (collectStdout && proc.stdout) {
-      proc.stdout.on('data', d => { stdout += d.toString(); });
-    }
+    const proc = spawn(bin, args, { stdio: ['ignore', 'ignore', collectStderr ? 'pipe' : 'inherit'], windowsHide: true, shell: false });
     if (collectStderr && proc.stderr) {
       proc.stderr.on('data', d => { stderr += d.toString(); });
     }
     proc.on('error', reject);
-    proc.on('close', code => code === 0
-      ? resolve({ code, stderr, stdout })
-      : reject(new Error(`${bin} exited with code ${code}${stderr ? `\n${stderr}` : ''}`)));
+    proc.on('close', code => code === 0 ? resolve({ code, stderr }) : reject(new Error(`${bin} exited with code ${code}${stderr ? `\n${stderr}` : ''}`)));
   });
 }
 
@@ -1003,44 +992,6 @@ app.post('/upload', checkAuth, (req, res) => {
     if (hasFile && hasUrl) return res.status(400).send('Provide either a video file OR a YouTube URL, not both.');
     if (!hasFile && !hasUrl) return res.status(400).send('Upload a video or provide a YouTube URL.');
     if (hasUrl && !isYouTubeUrl(url)) return res.status(400).send('URL must be a valid YouTube link.');
-
-    if (hasUrl) {
-      try {
-        res.write('[Notice] Checking video duration...\n');
-        const bin = await ensureYtDlp();
-        const args = [url, '-j', '--no-playlist', '-4'];
-        const COOKIES_PATH = path.join(__dirname, 'cookies.txt');
-        if (fs.existsSync(COOKIES_PATH)) {
-          console.log('Using cookies.txt for YouTube duration check...');
-          args.push('--cookies', COOKIES_PATH);
-        }
-        const { stdout } = await spawnPromise(bin, args, { collectStdout: true, collectStderr: true });
-        const trimmed = stdout?.trim();
-        if (trimmed) {
-          const metadataStr = trimmed.split(/\r?\n/).pop();
-          const metadata = JSON.parse(metadataStr || '{}');
-          const duration = metadata?.duration;
-          if (typeof duration === 'number') {
-            const MAX_DURATION_SEC = 60 * 60;
-            if (duration > MAX_DURATION_SEC) {
-              const durationMins = (duration / 60).toFixed(1);
-              const msg = `[Error] Video duration (${durationMins} min) exceeds the 60-minute limit.`;
-              res.write(`\n${msg}\n`);
-              res.end();
-              return;
-            }
-            res.write(`[Notice] Video duration (${(duration / 60).toFixed(1)} min) is OK.\n`);
-          } else {
-            res.write('[Notice] Could not determine video duration. Proceeding anyway...\n');
-          }
-        } else {
-          res.write('[Notice] Could not determine video duration. Proceeding anyway...\n');
-        }
-      } catch (e) {
-        console.error('Failed to get YouTube duration:', e.message);
-        res.write('[Notice] Warning: Could not check video duration. Proceeding with analysis...\n');
-      }
-    }
 
     const message = hasUrl ? '[Notice] YouTube URL received. Processing...\n' : '[Notice] Request received. Processing...\n';
     res.write(message);
@@ -1493,45 +1444,6 @@ app.get('/api/admin/stats', checkAuth, checkAdmin, (req, res) => {
     res.status(500).json({ message: e.message });
   }
 });
-
-// === NEW ADMIN DELETE ENDPOINT ===
-app.delete('/api/admin/jobs/:id', checkAuth, checkAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const item = db.prepare(
-      'SELECT video_url, job_name FROM analysis_jobs WHERE job_id = ?'
-    ).get(id);
-    
-    if (!item) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
-
-    const info = db.prepare(
-      'DELETE FROM analysis_jobs WHERE job_id = ?'
-    ).run(id);
-    
-    if (info.changes === 0) {
-      return res.status(404).json({ message: 'Job not found or already deleted' });
-    }
-
-    console.log(`ADMIN ACTION: User ${req.user.email} deleted job "${item.job_name}" (ID: ${id})`);
-
-    if (item.video_url && item.video_url.startsWith('/shared/')) {
-      const filename = decodeURIComponent(item.video_url.replace('/shared/', ''));
-      const filePath = path.join(SHARED_DIR, filename);
-      deleteIfExists(filePath)
-        .then(() => console.log(`Admin deleted video file: ${filePath}`))
-        .catch(err => console.error(`Failed to delete video file: ${filePath}`, err));
-    }
-
-    res.json({ ok: true, message: 'Job deleted successfully by admin' });
-  } catch (e) { 
-    console.error('Admin Delete error:', e);
-    res.status(500).json({ message: e.message || 'Failed to delete analysis' }); 
-  }
-});
-// === END NEW ADMIN DELETE ENDPOINT ===
 
 // --- NEW API ENDPOINT FOR USER LOGIN HISTORY ---
 app.get('/api/admin/logins/:google_id', checkAuth, checkAdmin, (req, res) => {

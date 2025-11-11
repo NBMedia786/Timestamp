@@ -496,7 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (confirm(`Are you sure you want to permanently delete this analysis job?\n\n(Job ID: ${jobId})`)) {
           try {
-            const res = await fetch(`/api/admin/jobs/${jobId}`, {
+            const res = await fetch(`/api/history/${jobId}`, {
               method: 'DELETE'
             });
 
