@@ -706,9 +706,7 @@ function updateCheckpointProgress(percentage) {
 
     analyze: 60,
 
-    complete: 90,
-
-    finalize: 98,
+    complete: 95,
 
   };
 
@@ -739,7 +737,7 @@ function activateCheckpoint(checkpointName) {
   if (currentCheckpoint === checkpointName) return;
 
   
-  
+
   // Mark previous checkpoint as completed
 
   if (currentCheckpoint) {
@@ -757,7 +755,7 @@ function activateCheckpoint(checkpointName) {
   }
 
   
-  
+
   // Activate new checkpoint
 
   const checkpoint = document.querySelector(`.checkpoint[data-checkpoint="${checkpointName}"]`);
@@ -771,14 +769,14 @@ function activateCheckpoint(checkpointName) {
   }
 
   
-  
+
   currentCheckpoint = checkpointName;
 
   
-  
+
   // Update progress bar position
 
-  const checkpoints = ['upload', 'process', 'analyze', 'complete', 'finalize'];
+  const checkpoints = ['upload', 'process', 'analyze', 'complete'];
 
   const index = checkpoints.indexOf(checkpointName);
 
@@ -1079,21 +1077,9 @@ function parseServerLine(line) {
 
     } else if (l.includes('analysis complete')) {
 
-      setUpload(95, 'Processing results…');
-
-      activateCheckpoint('complete');
-
-    } else if (l.includes('finalizing')) {
-
-      setUpload(97, 'Finalizing...');
-
-      activateCheckpoint('finalize');
-
-    } else if (l.includes('complete ✓')) {
-
       setUpload(100, 'Complete ✓');
 
-      activateCheckpoint('finalize');
+      activateCheckpoint('complete');
 
     }
 
@@ -1851,10 +1837,7 @@ async function performAnalysis(url, file) {
           }
 
           try {
-            setUpload(97, 'Finalizing...');
             updateStep('Reloading history and loading media...', false);
-            activateCheckpoint('finalize');
-            updateCheckpointProgress(90);
 
             // Wait for server to save, then reload history
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1905,7 +1888,7 @@ async function performAnalysis(url, file) {
           } finally {
             setUpload(100, 'Complete ✓');
             updateStep('Everything is ready!', true);
-            activateCheckpoint('finalize');
+            activateCheckpoint('complete');
             updateCheckpointProgress(100);
 
             setTimeout(() => {
