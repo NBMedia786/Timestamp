@@ -877,7 +877,7 @@ function setUpload(percent, statusText = '', etaText = '') {
   const numericPercent = Number(percent);
   const clampedPercent = Math.max(0, Math.min(100, isFinite(numericPercent) ? numericPercent : 0));
 
-  if (clampedPercent > 0 && autoCloseTimer) {
+  if (clampedPercent > 0 && clampedPercent < 100 && autoCloseTimer) {
     clearTimeout(autoCloseTimer);
     autoCloseTimer = null;
   }
