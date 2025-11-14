@@ -1827,10 +1827,6 @@ async function performAnalysis(url, file) {
           updateStep('Warning: No data received from server', true, true);
           showToast('Analysis completed but no results received');
         } else {
-          setUpload(95, 'Processing results…');
-          updateStep('Analysis complete! Processing results...', true);
-          activateCheckpoint('complete');
-          updateCheckpointProgress(80);
 
           if (progressConsole && resultsPre.textContent.trim().length > 0) {
             updateStreamingContent(resultsPre.textContent);
