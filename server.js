@@ -1135,6 +1135,10 @@ app.post('/upload', checkAuth, (req, res) => {
           WHERE job_id = ?
         `).run(time_taken_ms, analysisTextContent, finalJobName, savedUrl, jobId);
 
+        // Inform frontend checkpoints
+        res.write('\n[Notice] Analysis complete. Preparing results…\n');
+        res.write('[Notice] Finalizing results…\n');
+        res.write('[Notice] Complete ✓\n');
         res.write('\n');
       } catch (e) {
         // 8. Update job as 'failed'
