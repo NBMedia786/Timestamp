@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TTH Maker — Powered By NB Media</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+</head>
+<body class="app-layout">
+  <aside id="historyPanel" class="panel glass">
+    <div class="history-header-top">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <button class="history-tab-button active">HISTORY</button>
+        <button id="closeHistoryBtn" class="btn ghost" type="button" title="Close history" style="padding: 4px 8px; font-size: 18px; min-width: auto;">×</button>
+      </div>
+    </div>
+    <div class="history-search-container">
+      <div class="history-search-wrapper">
+        <svg class="history-search-icon-inner" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" stroke="url(#searchGradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <defs>
+            <linearGradient id="searchGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#7cc4ff;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:1" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <input type="text" id="historySearch" class="history-search-input" placeholder="Search history..." autocomplete="off">
+      </div>
+    </div>
+    <ul id="historyList" class="history-list"></ul>
+    <div class="storage-footer">
+      <div class="storage-row">
+        <span class="storage-label">Storage</span>
+        <span id="historyStorageText" class="storage-text">— / 20 GB</span>
+      </div>
+      <div class="storage-track">
+        <div id="historyStorageBar" class="storage-meter" style="width:0%"></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content-wrapper">
+    <div class="container">
+    <header class="header animate-pop">
+      <div class="title-wrap">
+        <h1>TTH Maker — Powered By NB Media</h1>
+        <p class="subtitle muted">Upload or link a video, analyze with your prompt, and validate timestamps in-app.</p>
+      </div>
+      <div class="header-actions">
+        <button id="historyBtn" class="btn ghost" type="button" title="View history">📜 History</button>
+        <button id="newAnalysisBtn" class="btn primary" type="button" title="Start a new analysis">➕ New Analysis</button>
+        <button id="logoutBtn" class="btn ghost" type="button" title="Log out of your account">🚪 Logout</button>
+      </div>
+    </header>
+
+    <!-- Main Tabs: Analyze / Results -->
+    <div class="tabs tabs-main" style="margin-bottom:14px;">
+      <button class="tab active" data-tab-main="analyze">
+        Analyze
+        <span class="tab-underline"></span>
+      </button>
+      <button class="tab" data-tab-main="results">
+        Results
+        <span class="tab-underline"></span>
+      </button>
+    </div>
+
+    <!-- Analyze (Input) view -->
+    <div class="main-tab-content active" id="tab-analyze-main">
+    <section class="grid-top">
+      <div class="stack-left">
+        <section class="panel animate-slide">
+    
+          <h2 class="panel-title">Input</h2>
+
+
+          <div id="dropZone" class="dropzone" tabindex="0" aria-label="Drag & drop a video">
+            <input id="video" name="video" type="file" accept="video/*" hidden />
+            <div class="dz-body">
+              <div class="dz-icon">🎬</div>
+              <div>
+                <div class="dz-title">Drag & drop a video</div>
+                <div class="dz-sub">or <button id="browseBtn" type="button" class="link">browse</button> <span class="muted tiny">(max 2 GB)</span></div>
+              </div>
+            </div>
+            <div id="fileInfo" class="dz-file hidden"></div>
+          </div>
+
+          <div class="divider"><span>OR</span></div>
+
+          <label class="field">
+            <span>YouTube URL</span>
+            <input id="url" name="url" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+          </label>
+
+          <div class="actions">
+            <button id="submitBtn" class="btn primary" type="button">Analyze</button>
+            <button id="clearBtn" class="btn ghost" type="button">Clear</button>
+          </div>
+        </section>
+
+        
+      </div>
+      
+    </section>
+    </div>
+
+    <form id="form" class="hidden" aria-hidden="true"></form>
+
+    <!-- Results view -->
+    <div class="main-tab-content" id="tab-results-main">
+    <section class="card glass animate-pop">
+      <div class="tabs">
+        <button class="tab active" data-tab="structured">
+          Structured
+          <span class="tab-underline"></span>
+        </button>
+        <button class="tab" data-tab="raw">
+          Raw stream
+          <span class="tab-underline"></span>
+        </button>
+      </div>
+
+      <div class="results-actions" style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px;">
+        <button id="shareBtn" class="btn ghost" type="button" disabled>🔗 Share</button>
+      </div>
+
+      <div class="tab-content active" id="tab-structured">
+        <div class="output-grid">
+          <div class="output-left-stack">
+            <aside class="panel player-panel">
+              <h2 class="panel-title">Player</h2>
+              <div class="player-wrap">
+                <video id="player" class="player hidden" controls playsinline></video>
+                <div class="yt-wrap hidden" id="ytWrap">
+                  <iframe
+                    id="ytFrame"
+                    title="YouTube video player"
+                    allow="autoplay; encrypted-media; picture-in-picture"
+                    allowfullscreen
+                    referrerpolicy="strict-origin-when-cross-origin">
+                  </iframe>
+                </div>
+              </div>
+              <div class="muted tiny">Tip: click a timestamp below to jump here.</div>
+            </aside>
+          </div>
+
+          <div class="output-right-stack">
+            <section class="panel animate-fade delay-1">
+              <div class="panel-header-row">
+                <h2 class="panel-title">Timestamps</h2>
+                <div class="filter-pill" id="activeFilterPill">All</div>
+                <div class="dropdown" style="margin-left:auto; position:relative;">
+                  <button id="tsFilterBtn" class="btn">Filter</button>
+                  <div id="tsFilterDropdown" class="dropdown-content hidden" style="position:absolute; right:0; top:calc(100% + 6px); min-width: 220px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px; z-index: 10;">
+                    <button class="filter-option btn ghost" data-filter="all" style="width:100%">All</button>
+                    <button class="filter-option btn ghost" data-filter="911_call" style="width:100%">911 Call</button>
+                    <button class="filter-option btn ghost" data-filter="investigation" style="width:100%">Investigation</button>
+                    <button class="filter-option btn ghost" data-filter="interrogation" style="width:100%">Interrogation</button>
+                    <button class="filter-option btn ghost" data-filter="interview" style="width:100%">Interview</button>
+                    <button class="filter-option btn ghost" data-filter="cctv" style="width:100%">CCTV Footage</button>
+                    <button class="filter-option btn ghost" data-filter="body_cam" style="width:100%">Body Cam Footages</button>
+                    <button class="filter-option btn ghost" data-filter="dash_cam" style="width:100%">Dashcam Footage</button>
+                  </div>
+                </div>
+              </div>
+              <div id="timestamps" class="table-wrap hidden">
+                <table class="table table-hover-lift">
+                  <thead><tr><th style="width:140px">Time</th><th>Description</th></tr></thead>
+                  <tbody id="timestampsBody"></tbody>
+                </table>
+              </div>
+
+              <div class="timestamp-cards-container" id="timestampCards"></div>
+            </section>
+          </div>
+        </div>
+        <div class="summary-meta-grid">
+          <section class="panel animate-fade">
+            <h2 class="panel-title">Summary</h2>
+            <div id="summary" class="summary muted">—</div>
+          </section>
+
+          <section class="panel animate-fade">
+            <div id="meta" class="table-wrap hidden">
+              <h3>Metadata</h3>
+              <table class="table">
+                <thead><tr><th>Field</th><th>Value</th></tr></thead>
+                <tbody id="metaBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-raw">
+        <div class="results-actions">
+          <button id="copyBtn" class="btn ghost" type="button">Copy</button>
+          <button id="saveBtn" class="btn ghost" type="button">Save .txt</button>
+        </div>
+        <pre id="results" class="results-pre" aria-live="polite"></pre>
+      </div>
+
+    </section>
+    </div>
+    </div>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <div id="progressModal" class="progress-modal hidden">
+    <div class="progress-modal-content glass">
+      <div class="progress-card">
+        <div class="progress-card-header">
+          <div class="progress-card-title">
+            <h3 id="progressStatus" class="progress-status-text">Submitting...</h3>
+            <p id="progressETA" class="progress-eta-text muted" style="display: none;">Estimated time remaining: —</p>
+          </div>
+          <button id="closeProgressModal" class="progress-modal-close" aria-label="Close" title="Close">×</button>
+        </div>
+
+        <div id="uploadMetrics" class="progress-section hidden">
+          <label class="progress-label">Upload Progress</label>
+          <div class="progress-upload-card">
+            <div class="progress-upload-row">
+              <span id="uploadProgressText">0 MB / 0 MB</span>
+              <span id="uploadSpeedText" class="upload-speed">0 MB/s</span>
+            </div>
+            <div class="progress-linear">
+              <div id="uploadProgressBar" class="progress-linear-meter"></div>
+            </div>
+            <div class="progress-upload-remaining">
+              <span id="uploadRemainingText">0 MB left</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="checkpoint-track-wrapper">
+          <div class="checkpoint-progress-bar">
+            <div id="checkpointProgressBar" class="checkpoint-progress-fill"></div>
+          </div>
+          <div class="checkpoints">
+            <div class="checkpoint" data-checkpoint="upload">
+              <div class="checkpoint-icon">
+                <div class="checkpoint-dot"></div>
+              </div>
+              <span class="checkpoint-label">Upload</span>
+            </div>
+            <div class="checkpoint" data-checkpoint="process">
+              <div class="checkpoint-icon">
+                <div class="checkpoint-dot"></div>
+              </div>
+              <span class="checkpoint-label">Process</span>
+            </div>
+            <div class="checkpoint" data-checkpoint="analyze">
+              <div class="checkpoint-icon">
+                <div class="checkpoint-dot"></div>
+              </div>
+              <span class="checkpoint-label">Analyze</span>
+            </div>
+            <div class="checkpoint" data-checkpoint="complete">
+              <div class="checkpoint-icon">
+                <div class="checkpoint-dot"></div>
+              </div>
+              <span class="checkpoint-label">Complete</span>
+            </div>
+            <div class="checkpoint" data-checkpoint="finalize">
+              <div class="checkpoint-icon">
+                <div class="checkpoint-dot"></div>
+              </div>
+              <span class="checkpoint-label">Finalize</span>
+            </div>
+          </div>
+        </div>
+
+        <button id="toggleProgressDetails" class="btn ghost small" type="button">
+          Show Details
+        </button>
+      </div>
+
+      <div id="progressDetailsPanel" class="progress-details-panel hidden">
+        <div class="progress-details-header">
+          <span class="progress-label">Live AI Stream</span>
+        </div>
+        <div id="progressStreamPreview" class="progress-console">
+          <div id="progressConsole">
+            <span class="muted">Waiting for AI stream...</span>
+          </div>
+        </div>
+      </div>
+
+      <button id="modalRetryBtn" class="btn primary hidden" type="button">
+        Retry Analysis
+      </button>
+    </div>
+  </div>
+
+  <div id="deleteModal" class="delete-modal hidden">
+    <div class="delete-modal-content glass">
+      <div class="delete-icon">🗑️</div>
+      <h3 id="deleteStatus" class="delete-status-text">Deleting...</h3>
+      <div class="delete-progress-section">
+        <div class="delete-progress-bar">
+          <div id="deleteProgressBar" class="delete-progress-fill"></div>
+        </div>
+        <div id="deleteProgressPercent" class="delete-progress-percent">0%</div>
+      </div>
+      <p id="deleteSubStatus" class="delete-sub-status">Removing job data...</p>
+    </div>
+  </div>
+  <script src="script.js" type="module"></script>
+</body>
+</html>
