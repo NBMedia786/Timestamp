@@ -3,6 +3,7 @@
 
 import { escapeHTML, parseAndPill, categoryClass, parseGeminiOutput, timeToSeconds, buildStructuredOutput } from './parser.js';
 let currentAnalysisXHR = null;
+let autoCloseTimer = null;
 
 
 const form = document.getElementById('form');
@@ -666,6 +667,16 @@ function setProgressDetailsVisibility(show) {
   progressDetailsExpanded = !!show;
   if (!progressDetailsPanel) return;
   if (progressDetailsExpanded) {
+function scheduleProgressAutoClose() {
+  if (autoCloseTimer) {
+    clearTimeout(autoCloseTimer);
+  }
+  autoCloseTimer = setTimeout(() => {
+    setUpload(0, 'Idle');
+    autoCloseTimer = null;
+  }, 3000);
+}
+
     progressDetailsPanel.classList.remove('hidden');
     if (toggleProgressDetailsBtn) {
       toggleProgressDetailsBtn.classList.add('expanded');
@@ -865,6 +876,11 @@ function setUpload(percent, statusText = '', etaText = '') {
 
   const numericPercent = Number(percent);
   const clampedPercent = Math.max(0, Math.min(100, isFinite(numericPercent) ? numericPercent : 0));
+
+  if (clampedPercent > 0 && autoCloseTimer) {
+    clearTimeout(autoCloseTimer);
+    autoCloseTimer = null;
+  }
 
   if (clampedPercent <= 0) {
     if (!progressModal.classList.contains('hidden')) {
@@ -1080,6 +1096,8 @@ function parseServerLine(line) {
       setUpload(100, 'Complete ✓');
 
       activateCheckpoint('complete');
+
+      scheduleProgressAutoClose();
 
     }
 
@@ -1887,9 +1905,7 @@ async function performAnalysis(url, file) {
             activateCheckpoint('complete');
             updateCheckpointProgress(100);
 
-            setTimeout(() => {
-              setUpload(0, 'Idle');
-            }, 3000);
+            scheduleProgressAutoClose();
 
             setTimeout(() => {
               if (progressConsole) {
