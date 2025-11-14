@@ -1855,72 +1855,79 @@ async function performAnalysis(url, file) {
           activateCheckpoint('finalize');
           updateCheckpointProgress(90);
 
-          // Wait for server to save, then reload history
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          await renderHistory(historySearch ? historySearch.value : '');
+          try {
+            // Wait for server to save, then reload history
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await renderHistory(historySearch ? historySearch.value : '');
 
-          // Load video into player
-          if (currentVideoFile) {
-            updateStep('Loading video into player...', false);
-            try {
-              if (!player.src || player.src === window.location.href) {
-                const objUrl = URL.createObjectURL(currentVideoFile);
-                player.src = objUrl;
+            // Load video into player
+            if (currentVideoFile) {
+              updateStep('Loading video into player...', false);
+              try {
+                if (!player.src || player.src === window.location.href) {
+                  const objUrl = URL.createObjectURL(currentVideoFile);
+                  player.src = objUrl;
+                }
+                player.classList.remove('hidden');
+                ytFrame?.removeAttribute('src');
+                ytWrap?.classList.add('hidden');
+                await new Promise(resolve => setTimeout(resolve, 500));
+              } catch (videoError) {
+                console.warn('Could not reload local video:', videoError);
               }
-              player.classList.remove('hidden');
-              ytFrame.removeAttribute('src');
-              ytWrap.classList.add('hidden');
-              await new Promise(resolve => setTimeout(resolve, 500));
-            } catch (videoError) {
-              console.warn('Could not reload local video:', videoError);
+            } else if (urlInput && urlInput.value.trim()) {
+              updateStep('Loading video into player...', false);
+              const embed = toYouTubeEmbed(urlInput.value.trim());
+              if (embed) {
+                if (ytFrame) ytFrame.src = embed;
+                ytWrap?.classList.remove('hidden');
+                player?.classList.add('hidden');
+              }
+              await new Promise(resolve => setTimeout(resolve, 300));
             }
-          } else if (urlInput && urlInput.value.trim()) {
-            updateStep('Loading video into player...', false);
-            const embed = toYouTubeEmbed(urlInput.value.trim());
-            if (embed) {
-              ytFrame.src = embed;
-              ytWrap.classList.remove('hidden');
-              player.classList.add('hidden');
-            }
-            await new Promise(resolve => setTimeout(resolve, 300));
+
+            // Switch to results tab
+            updateStep('Opening results view...', false);
+            mainTabs.forEach(b => b.classList.remove('active'));
+            const resultsMainTab = document.querySelector('[data-tab-main="results"]');
+            resultsMainTab?.classList.add('active');
+            mainTabContents.forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-results-main')?.classList.add('active');
+            
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            document.querySelector('.tab[data-tab="structured"]')?.classList.add('active');
+            document.getElementById('tab-structured')?.classList.add('active');
+          } catch (postProcessError) {
+            console.error('Post-processing error after analysis:', postProcessError);
+            addConsoleLog(`[Error] Post-processing error: ${postProcessError.message || postProcessError}`);
+            showToast('Analysis finished, but the UI failed to update. Please refresh.');
+          } finally {
+            // Finalize (always run)
+            setUpload(100, 'Complete ✓');
+            updateStep('Everything is ready!', true);
+            activateCheckpoint('finalize');
+            updateCheckpointProgress(100);
+
+            // Celebration message
+            setTimeout(() => {
+              if (progressConsole) {
+                const celebration = document.createElement('div');
+                celebration.className = 'console-step step-complete';
+                celebration.style.marginTop = '12px';
+                celebration.style.background = 'rgba(29, 229, 160, 0.15)';
+                celebration.style.animation = 'stepSlideIn 0.5s ease';
+                celebration.innerHTML = `<span class="step-check">✓</span> <strong style="color: var(--ok);">Success!</strong> Your video analysis is complete and ready to view.`;
+                progressConsole.appendChild(celebration);
+                progressConsole.scrollTop = progressConsole.scrollHeight;
+              }
+            }, 300);
+
+            // Auto-close modal after a delay
+            setTimeout(() => {
+              setUpload(0, 'Idle'); // Hide modal after completion
+            }, 3000);
           }
-
-          // Switch to results tab
-          updateStep('Opening results view...', false);
-          mainTabs.forEach(b => b.classList.remove('active'));
-          document.querySelector('[data-tab-main="results"]').classList.add('active');
-          mainTabContents.forEach(c => c.classList.remove('active'));
-          document.getElementById('tab-results-main').classList.add('active');
-          
-          tabs.forEach(t => t.classList.remove('active'));
-          tabContents.forEach(c => c.classList.remove('active'));
-          document.querySelector('.tab[data-tab="structured"]').classList.add('active');
-          document.getElementById('tab-structured').classList.add('active');
-
-          // Finalize
-          setUpload(100, 'Complete ✓');
-          updateStep('Everything is ready!', true);
-          activateCheckpoint('finalize');
-          updateCheckpointProgress(100);
-
-          // Celebration message
-          setTimeout(() => {
-            if (progressConsole) {
-              const celebration = document.createElement('div');
-              celebration.className = 'console-step step-complete';
-              celebration.style.marginTop = '12px';
-              celebration.style.background = 'rgba(29, 229, 160, 0.15)';
-              celebration.style.animation = 'stepSlideIn 0.5s ease';
-              celebration.innerHTML = `<span class="step-check">✓</span> <strong style="color: var(--ok);">Success!</strong> Your video analysis is complete and ready to view.`;
-              progressConsole.appendChild(celebration);
-              progressConsole.scrollTop = progressConsole.scrollHeight;
-            }
-          }, 300);
-
-          // Auto-close modal after a delay
-          setTimeout(() => {
-            setUpload(0, 'Idle'); // Hide modal after completion
-          }, 3000); // Wait 3 seconds after completion to show the success message
         }
         resolve(); // Resolve the promise on success
       } else {

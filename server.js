@@ -870,7 +870,7 @@ async function downloadYouTube(url) {
   const args = [ url, ...ytFormatArgs(ff.ok), '-o', outTpl, '-4' ];
 
   // --- START COOKIE SUPPORT ---
-  const COOKIES_PATH = path.join(__dirname, 'cookies.txt');
+  const COOKIES_PATH = "/root/cookies.txt";
   if (fs.existsSync(COOKIES_PATH)) {
     console.log('Using cookies.txt for YouTube download...');
     args.push('--cookies', COOKIES_PATH);
