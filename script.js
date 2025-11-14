@@ -1852,7 +1852,7 @@ async function performAnalysis(url, file) {
 
           try {
             setUpload(97, 'Finalizing...');
-            updateStep('Reloading history and loading video...', false);
+            updateStep('Reloading history and loading media...', false);
             activateCheckpoint('finalize');
             updateCheckpointProgress(90);
 
@@ -1860,9 +1860,9 @@ async function performAnalysis(url, file) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             await renderHistory(historySearch ? historySearch.value : '');
 
-            // Load video into player
+            // Load media into player
             if (currentVideoFile) {
-              updateStep('Loading video into player...', false);
+              updateStep('Loading media into player...', false);
               try {
                 if (!player.src || player.src === window.location.href) {
                   const objUrl = URL.createObjectURL(currentVideoFile);
@@ -1873,7 +1873,7 @@ async function performAnalysis(url, file) {
                 ytWrap?.classList.add('hidden');
                 await new Promise(resolve => setTimeout(resolve, 500));
               } catch (videoError) {
-                console.warn('Could not reload local video:', videoError);
+                console.warn('Could not reload local media:', videoError);
               }
             } else if (urlInput && urlInput.value.trim()) {
               updateStep('Loading video into player...', false);
@@ -1889,8 +1889,7 @@ async function performAnalysis(url, file) {
             // Switch to results tab
             updateStep('Opening results view...', false);
             mainTabs.forEach(b => b.classList.remove('active'));
-            const resultsMainTab = document.querySelector('[data-tab-main="results"]');
-            resultsMainTab?.classList.add('active');
+            document.querySelector('[data-tab-main="results"]')?.classList.add('active');
             mainTabContents.forEach(c => c.classList.remove('active'));
             document.getElementById('tab-results-main')?.classList.add('active');
             
@@ -1901,20 +1900,18 @@ async function performAnalysis(url, file) {
           } catch (postProcessError) {
             console.error('Post-processing error after analysis:', postProcessError);
             addConsoleLog(`[Error] Post-processing error: ${postProcessError.message || postProcessError}`);
-            showToast('Analysis finished, but the UI failed to update. Please refresh.');
+            showToast('Analysis finished, but UI failed to update. Please refresh.', 'error');
+          
           } finally {
-            // Finalize (always run)
             setUpload(100, 'Complete ✓');
             updateStep('Everything is ready!', true);
             activateCheckpoint('finalize');
             updateCheckpointProgress(100);
 
-            // Auto-close modal after a delay
             setTimeout(() => {
-              setUpload(0, 'Idle'); // Hide modal after completion
+              setUpload(0, 'Idle');
             }, 3000);
 
-            // Celebration message
             setTimeout(() => {
               if (progressConsole) {
                 const celebration = document.createElement('div');
