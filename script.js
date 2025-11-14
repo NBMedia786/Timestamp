@@ -1079,7 +1079,7 @@ function parseServerLine(line) {
 
     } else if (l.includes('analysis complete')) {
 
-      setUpload(95, 'Analysis complete!');
+      setUpload(95, 'Processing results…');
 
       activateCheckpoint('complete');
 
@@ -1909,6 +1909,11 @@ async function performAnalysis(url, file) {
             activateCheckpoint('finalize');
             updateCheckpointProgress(100);
 
+            // Auto-close modal after a delay
+            setTimeout(() => {
+              setUpload(0, 'Idle'); // Hide modal after completion
+            }, 3000);
+
             // Celebration message
             setTimeout(() => {
               if (progressConsole) {
@@ -1922,11 +1927,6 @@ async function performAnalysis(url, file) {
                 progressConsole.scrollTop = progressConsole.scrollHeight;
               }
             }, 300);
-
-            // Auto-close modal after a delay
-            setTimeout(() => {
-              setUpload(0, 'Idle'); // Hide modal after completion
-            }, 3000);
           }
         }
         resolve(); // Resolve the promise on success
