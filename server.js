@@ -90,6 +90,18 @@ CATEGORY RULES (CRITICAL!):
 
 
 
+NEW RULE FOR INTERVIEWS/INTERROGATIONS:
+
+For any segments categorized as INTERVIEW or INTERROGATION, you MUST create a new timestamp for each distinct question-and-answer exchange.
+
+Do NOT create one single timestamp for the entire conversation.
+
+Example of Correct Interview Formatting:
+
+[01:05 - 01:20] - Interview Q1 - Officer asks about the suspect's alibi.
+[01:21 - 01:45] - Interview A1 - Suspect describes being at home.
+[01:46 - 01:55] - Interview Q2 - Officer asks for confirmation.
+
 - **THE GOLDEN RULE:**
 
 - If an "Interview" or an "Investigation" is clearly recorded on **BODYCAM FOOTAGE**, you **MUST** list it **ONLY** under the **BODYCAM FOOTAGE** category.
@@ -1255,13 +1267,13 @@ app.get('/share/:id', async (req, res) => {
 // ---------- History API (now from SQLite) ----------
 app.get('/api/history', checkAuth, (req, res) => {
   try {
-    // Get all jobs (completed and failed) for the logged-in user
+    // Get ALL jobs (completed and failed) for ALL users
     const items = db.prepare(`
       SELECT job_id, job_name, analysis_text, video_url, file_name, created_at, analyzed_by_name, status
       FROM analysis_jobs 
-      WHERE user_google_id = ? AND (status = 'completed' OR status = 'failed')
+      WHERE (status = 'completed' OR status = 'failed')
       ORDER BY created_at DESC
-    `).all(req.user.google_id);
+    `).all();
 
     // Map to the old format for frontend compatibility
     const history = items.map(item => ({

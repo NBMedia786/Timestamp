@@ -3452,7 +3452,7 @@ historyList?.addEventListener('click', async (e) => {
 
       // It's a shared local file URL - convert to absolute URL
 
-      urlInput.value = '';
+      urlInput.value = item.videoUrl;
 
       const absoluteVideoUrl = new URL(item.videoUrl, window.location.origin).href;
 
