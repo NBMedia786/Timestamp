@@ -667,14 +667,14 @@ function setProgressDetailsVisibility(show) {
   progressDetailsExpanded = !!show;
   if (!progressDetailsPanel) return;
   if (progressDetailsExpanded) {
-function scheduleProgressAutoClose() {
+function scheduleProgressAutoClose(delayMs = 3000) {
   if (autoCloseTimer) {
     clearTimeout(autoCloseTimer);
   }
   autoCloseTimer = setTimeout(() => {
     setUpload(0, 'Idle');
     autoCloseTimer = null;
-  }, 3000);
+  }, delayMs);
 }
 
     progressDetailsPanel.classList.remove('hidden');
@@ -930,6 +930,10 @@ function setUpload(percent, statusText = '', etaText = '') {
   }
 
   updateCheckpointProgress(clampedPercent);
+
+  if (clampedPercent >= 100) {
+    scheduleProgressAutoClose(4000);
+  }
 }
 
 
