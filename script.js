@@ -667,16 +667,6 @@ function setProgressDetailsVisibility(show) {
   progressDetailsExpanded = !!show;
   if (!progressDetailsPanel) return;
   if (progressDetailsExpanded) {
-function scheduleProgressAutoClose(delayMs = 3000) {
-  if (autoCloseTimer) {
-    clearTimeout(autoCloseTimer);
-  }
-  autoCloseTimer = setTimeout(() => {
-    setUpload(0, 'Idle');
-    autoCloseTimer = null;
-  }, delayMs);
-}
-
     progressDetailsPanel.classList.remove('hidden');
     if (toggleProgressDetailsBtn) {
       toggleProgressDetailsBtn.classList.add('expanded');
@@ -689,6 +679,16 @@ function scheduleProgressAutoClose(delayMs = 3000) {
       toggleProgressDetailsBtn.textContent = 'Show Details';
     }
   }
+}
+
+function scheduleProgressAutoClose(delayMs = 3000) {
+  if (autoCloseTimer) {
+    clearTimeout(autoCloseTimer);
+  }
+  autoCloseTimer = setTimeout(() => {
+    setUpload(0, 'Idle');
+    autoCloseTimer = null;
+  }, delayMs);
 }
 
 // Checkpoint tracking
@@ -1062,33 +1062,33 @@ function parseServerLine(line) {
 
     if (l.includes('downloading youtube video')) {
 
-      setUpload(12, 'Downloading…');
+      setUpload(10, 'Downloading…');
 
       activateCheckpoint('upload');
 
     } else if (l.includes('uploading video to gemini')) {
 
-      setUpload(20, 'Uploading to Gemini…');
+      setUpload(10, 'Uploading to Gemini…');
 
       activateCheckpoint('upload');
 
     } else if (l.includes('upload complete')) {
 
-      setUpload(30, 'Upload complete.');
+      setUpload(40, 'Upload complete.');
 
       activateCheckpoint('process');
       resetUploadMetrics(); // <-- ADDED FIX
 
     } else if (l.includes('waiting for gemini')) {
 
-      setUpload(45, 'Processing video…');
+      setUpload(50, 'Processing video…');
 
       activateCheckpoint('process');
       resetUploadMetrics(); // <-- ADDED FIX
 
     } else if (l.includes('file is active')) {
 
-      setUpload(65, 'File is ACTIVE. Analyzing…');
+      setUpload(60, 'File is ACTIVE. Analyzing…');
 
       activateCheckpoint('analyze');
       resetUploadMetrics(); // <-- ADDED FIX
@@ -1712,7 +1712,7 @@ async function performAnalysis(url, file) {
     xhr.setRequestHeader('Accept', 'text/plain');
 
     let softTimer = null;
-    let softPct = 37;
+    let softPct = 60;
     let activityTimer = null;
     let hasReceivedData = false;
     let lastActivityTime = Date.now();
@@ -1737,7 +1737,7 @@ async function performAnalysis(url, file) {
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         const percent = (event.loaded / event.total) * 100;
-        const overallPercent = 12 + (percent * 0.30);
+        const overallPercent = 10 + (percent * 0.30);
         setUpload(overallPercent, 'Uploading…');
         if (uploadMetrics) uploadMetrics.classList.remove('hidden');
         if (!uploadStats.active) {
@@ -1749,11 +1749,11 @@ async function performAnalysis(url, file) {
 
     xhr.upload.onloadstart = () => {
       if (file) {
-        setUpload(12, 'Uploading…');
+        setUpload(10, 'Uploading…');
         activateCheckpoint('upload');
         showUploadMetrics(file.size);
       } else {
-        setUpload(12, 'Submitting…');
+        setUpload(10, 'Submitting…');
         activateCheckpoint('upload');
         showUploadMetrics(null); // <-- MODIFIED: Show panel in indeterminate state for URLs
       }
@@ -1763,7 +1763,7 @@ async function performAnalysis(url, file) {
       // This fires when the upload *completes*
       finalizeUploadMetrics();
       // if (uploadMetrics) uploadMetrics.classList.add('hidden'); // <-- REMOVED: Don't hide yet
-      setUpload(30, 'Upload complete.');
+      setUpload(40, 'Upload complete.');
       activateCheckpoint('process');
     };
 
@@ -1814,7 +1814,7 @@ async function performAnalysis(url, file) {
         if (!softTimer) {
           setUpload(softPct, progressStatus.textContent);
           softTimer = setInterval(() => {
-            if (softPct < 88) {
+            if (softPct < 95) {
               softPct += 1;
               setUpload(softPct, progressStatus.textContent);
             } else {
