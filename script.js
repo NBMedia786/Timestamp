@@ -1841,7 +1841,7 @@ async function performAnalysis(url, file) {
           updateStep('Warning: No data received from server', true, true);
           showToast('Analysis completed but no results received');
         } else {
-          setUpload(95, 'Analysis complete!');
+          setUpload(95, 'Processing results…');
           updateStep('Analysis complete! Processing results...', true);
           activateCheckpoint('complete');
           updateCheckpointProgress(80);
@@ -1850,12 +1850,12 @@ async function performAnalysis(url, file) {
             updateStreamingContent(resultsPre.textContent);
           }
 
-          setUpload(97, 'Finalizing...');
-          updateStep('Reloading history and loading video...', false);
-          activateCheckpoint('finalize');
-          updateCheckpointProgress(90);
-
           try {
+            setUpload(97, 'Finalizing...');
+            updateStep('Reloading history and loading video...', false);
+            activateCheckpoint('finalize');
+            updateCheckpointProgress(90);
+
             // Wait for server to save, then reload history
             await new Promise(resolve => setTimeout(resolve, 1000));
             await renderHistory(historySearch ? historySearch.value : '');
