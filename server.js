@@ -70,7 +70,7 @@ CATEGORY RULES (CRITICAL!):
 
 - **Priority 1: Source Categories** (If you know the *source* of the clip, use this category):
 
-  - 911 CALLS (Audio source)
+  - 911 CALLS (Analyze BOTH audio and video. This category is for emergency calls, which may include audio-only calls, video calls, or recordings that show the call center/dispatch environment.)
 
   - CCTV FOOTAGE (Fixed camera source)
 

@@ -207,10 +207,10 @@ function parseGeminiOutput(text) {
                     const fullDescription = clean(tsMatch[3]);
                     
                     // Smart category detection from description and label
-                    let detectedCategory = detectCategoryFromText(fullDescription, shortLabel);
+                    let detectedCategory = null; // DISABLED: detectCategoryFromText(fullDescription, shortLabel);
                     
                     // Use detected category first, then current category if not General, finally General
-                    const finalCategory = detectedCategory || (currentCategory !== 'General' ? currentCategory : 'General');
+                    const finalCategory = currentCategory || 'General';
                     
                     timestamps.push({
                         time: timePart,
@@ -229,9 +229,9 @@ function parseGeminiOutput(text) {
                         }
                         
                         // Smart category detection from description
-                        let detectedCategory = detectCategoryFromText(description);
+                        let detectedCategory = null; // DISABLED: detectCategoryFromText(description);
                         
-                        const finalCategory = detectedCategory || (currentCategory !== 'General' ? currentCategory : 'General');
+                        const finalCategory = currentCategory || 'General';
                         
                         timestamps.push({
                             time: timePart,
