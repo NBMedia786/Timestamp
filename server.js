@@ -192,6 +192,18 @@ For any category with a count of (0), you MUST explicitly output: "No [CATEGORY 
 
 
 
+**COMPLETENESS REQUIREMENT (MANDATORY):**
+
+- You MUST analyze the video from the absolute start (00:00) to the absolute end.
+
+- Do not stop analyzing partway through the video, even if there is silence or low activity.
+
+- Your timestamps must cover all significant events across the *entire* duration of the video.
+
+- Your final summary must reflect the narrative of the *entire* video, from start to finish, not just the first half.
+
+
+
 SUMMARY AND STORYLINE:
 
 After extracting all timestamps, provide a comprehensive summary that explains:
@@ -1498,26 +1510,40 @@ app.put('/api/history/:id', checkAuth, (req, res) => {
   }
 });
 
-app.delete('/api/history/:id', checkAuth, (req, res) => {
+app.delete('/api/history/:id', checkAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // 1. Get the item to find its video_url and verify ownership
-    const item = db.prepare(
-      'SELECT video_url, job_name FROM analysis_jobs WHERE job_id = ? AND user_google_id = ?'
-    ).get(id, req.user.google_id);
-    
-    if (!item) {
-      return res.status(404).json({ message: 'Not found or no permission' });
-    }
+    const user = req.user; // Get the currently logged-in user
 
-    // 2. Delete the entire record from the database (this deletes all video data: analysis_text, video_url, file_name, etc.)
-    const info = db.prepare(
-      'DELETE FROM analysis_jobs WHERE job_id = ? AND user_google_id = ?'
-    ).run(id, req.user.google_id);
+    // --- ADMIN CHECK ---
+    const adminEmailList = (process.env.ADMIN_EMAILS || '')
+      .split(',')
+      .map(e => e.trim().toLowerCase())
+      .filter(e => e.length > 0);
+    const isAdmin = user.email && adminEmailList.includes(user.email.toLowerCase());
+    // --- END ADMIN CHECK ---
+
+    let item;
+    let info;
+
+    if (isAdmin) {
+      // ADMIN: Can delete ANY job (including "processing" ones)
+      console.log(`Admin ${user.email} is deleting job ${id}`);
+      item = db.prepare('SELECT video_url, job_name FROM analysis_jobs WHERE job_id = ?').get(id);
+      if (item) {
+        info = db.prepare('DELETE FROM analysis_jobs WHERE job_id = ?').run(id);
+      }
+    } else {
+      // REGULAR USER: Can only delete THEIR OWN job
+      console.log(`User ${user.email} is deleting job ${id}`);
+      item = db.prepare('SELECT video_url, job_name FROM analysis_jobs WHERE job_id = ? AND user_google_id = ?').get(id, user.google_id);
+      if (item) {
+        info = db.prepare('DELETE FROM analysis_jobs WHERE job_id = ? AND user_google_id = ?').run(id, user.google_id);
+      }
+    }
     
-    if (info.changes === 0) {
-      return res.status(404).json({ message: 'Not found or already deleted' });
+    if (!item || !info || info.changes === 0) {
+      return res.status(404).json({ message: 'Not found or no permission' });
     }
 
     console.log(`Deleted analysis job "${item.job_name}" (ID: ${id}) from database`);
@@ -1531,7 +1557,7 @@ app.delete('/api/history/:id', checkAuth, (req, res) => {
         .catch(err => console.error(`Failed to delete video file: ${filePath}`, err));
     }
 
-    res.json({ ok: true, message: 'Analysis and video data deleted successfully' });
+    res.json({ ok: true, message: 'Job deleted successfully' });
   } catch (e) { 
     console.error('Delete error:', e);
     res.status(500).json({ message: e.message || 'Failed to delete analysis' }); 
@@ -1683,6 +1709,50 @@ app.get('/api/admin/logins/:google_id', checkAuth, checkAdmin, (req, res) => {
 
     res.json(logins);
   } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// 1. Endpoint to get ALL users
+app.get('/api/admin/users', checkAuth, checkAdmin, (req, res) => {
+  try {
+    const users = db.prepare('SELECT google_id, email, display_name FROM users ORDER BY display_name').all();
+    res.json(users);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// 2. Endpoint to log out a specific user
+app.post('/api/admin/logout-user/:google_id', checkAuth, checkAdmin, (req, res) => {
+  try {
+    const { google_id } = req.params;
+    
+    // Find all active sessions for this google_id by parsing the session data
+    const sessions = db.prepare('SELECT sid, data FROM sessions').all();
+    let sessionsDeleted = 0;
+    
+    for (const session of sessions) {
+      try {
+        const sessionData = JSON.parse(session.data);
+        // Check if the passport user in the session matches the target google_id
+        if (sessionData?.passport?.user === google_id) {
+          // Found the user's session. Delete it from the database.
+          db.prepare('DELETE FROM sessions WHERE sid = ?').run(session.sid);
+          sessionsDeleted++;
+        }
+      } catch (e) {
+        // Ignore errors from parsing invalid session data
+      }
+    }
+
+    if (sessionsDeleted > 0) {
+      res.json({ ok: true, message: `User logged out. ${sessionsDeleted} session(s) destroyed.` });
+    } else {
+      res.status(404).json({ message: 'User not found or no active session.' });
+    }
+  } catch (e) {
+    console.error('Logout user error:', e);
     res.status(500).json({ message: e.message });
   }
 });

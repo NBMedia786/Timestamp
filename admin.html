@@ -76,6 +76,21 @@
         transform: translateY(0);
       }
     }
+    .btn.small {
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 8px;
+      font-weight: 500;
+    }
+    .btn.ghost.small {
+      border-color: rgba(255, 93, 102, 0.4);
+      color: rgba(255, 93, 102, 0.9);
+    }
+    .btn.ghost.small:hover {
+      background: rgba(255, 93, 102, 0.1);
+      color: var(--err);
+      border-color: var(--err);
+    }
   </style>
 </head>
 <body>
@@ -171,6 +186,26 @@
             </tr>
           </thead>
           <tbody id="table-recent-logins"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel glass admin-panel">
+      <div class="panel-header">
+        <h2>All Users (<span id="user-count">...</span>)</h2>
+      </div>
+      <div class="table-container" id="users-table-container" style="max-height: 400px;">
+        <table class="table admin-table" id="users-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th class="action-col">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="table-all-users">
+            <tr><td colspan="3">Loading users...</td></tr>
+          </tbody>
         </table>
       </div>
     </section>

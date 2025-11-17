@@ -194,6 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const loginsTableBody = document.getElementById('table-recent-logins');
   const jobsTable = document.getElementById('table-recent-jobs');
   const refreshBtn = document.getElementById('refresh-btn');
+  const allUsersTableBody = document.getElementById('table-all-users');
+  const userCountEl = document.getElementById('user-count');
 
   // --- PAGINATION STATE ---
   let currentJobsPage = 1;
@@ -288,6 +290,9 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         console.error('Admin script could not find element with ID: #table-recent-logins');
       }
+
+      // 4. Load users list
+      loadUsers();
 
     } catch (err) {
       // This is the error message you are seeing.
@@ -387,6 +392,77 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       nextBtn.style.display = 'none';
     }
+  }
+
+  // --- LOAD USERS FUNCTION ---
+  async function loadUsers() {
+    if (!allUsersTableBody) return;
+    
+    try {
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) throw new Error('Failed to load users');
+      const users = await res.json();
+      
+      if (userCountEl) userCountEl.textContent = users.length;
+      
+      if (users.length === 0) {
+        allUsersTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--muted);">No users found.</td></tr>`;
+        return;
+      }
+      
+      allUsersTableBody.innerHTML = users.map(user => {
+        const googleId = (user.google_id || '').replace(/"/g, '&quot;');
+        const email = (user.email || '').replace(/"/g, '&quot;');
+        const displayName = (user.display_name || 'Unknown').replace(/"/g, '&quot;');
+        
+        return `
+          <tr data-user-id="${googleId}">
+            <td>${displayName}</td>
+            <td>${email}</td>
+            <td class="action-col">
+              <button class="btn ghost small logout-user-btn" data-user-id="${googleId}" data-user-name="${displayName}" title="Force logout this user">
+                Log Out
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      
+    } catch (err) {
+      allUsersTableBody.innerHTML = `<tr><td colspan="3" style="color: var(--err);">${err.message}</td></tr>`;
+    }
+  }
+
+  // --- LOGOUT USER EVENT LISTENER ---
+  if (allUsersTableBody) {
+    allUsersTableBody.addEventListener('click', async (e) => {
+      const logoutBtn = e.target.closest('.logout-user-btn');
+      if (logoutBtn) {
+        const userId = logoutBtn.dataset.userId;
+        const userName = logoutBtn.dataset.userName;
+        
+        if (confirm(`Are you sure you want to force ${userName} (${userId}) to log out?\n\nThey will be required to sign in again.`)) {
+          try {
+            logoutBtn.textContent = 'Logging out...';
+            logoutBtn.disabled = true;
+            
+            const res = await fetch(`/api/admin/logout-user/${userId}`, {
+              method: 'POST'
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.message);
+            
+            showToast(`${userName} has been logged out.`);
+            logoutBtn.textContent = 'Logged Out';
+            logoutBtn.closest('tr').style.opacity = '0.5';
+          } catch (err) {
+            showToast(`Error: ${err.message}`, 'error');
+            logoutBtn.textContent = 'Log Out';
+            logoutBtn.disabled = false;
+          }
+        }
+      }
+    });
   }
 
   // --- INITIALIZE ---
