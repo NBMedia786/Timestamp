@@ -27,6 +27,12 @@ function categoryClass(category) {
 
 // Smart category detection function with priority-based matching
 function detectCategoryFromText(description, label = '') {
+    // THIS FUNCTION IS DISABLED PER YOUR REQUEST
+    // TO MAKE THE STRUCTURED VIEW MATCH THE RAW OUTPUT.
+    // To re-enable, replace "return null;" with the logic below.
+    return null;
+
+    /*
     if (!description && !label) return null;
     
     // Combine description and label for analysis
@@ -86,6 +92,7 @@ function detectCategoryFromText(description, label = '') {
     }
     
     return null; // No match found
+    */
 }
 
 function parseGeminiOutput(text) {
@@ -108,14 +115,16 @@ function parseGeminiOutput(text) {
 
         if (trimmedLine.length === 0) continue;
 
-        // *** FIX IS HERE: Reverted from startsWith to includes ***
-        if (upperLine.includes('METADATA') && !upperLine.includes('EXTRACTION')) {
+        // *** FIX 1: Use clean() and startsWith() for strict header matching ***
+        const cleanUpperLine = clean(upperLine);
+
+        if (cleanUpperLine.startsWith('METADATA') && !cleanUpperLine.includes('EXTRACTION')) {
             currentSection = 'METADATA';
             continue;
-        } else if (upperLine.includes('TIMESTAMPS')) {
+        } else if (cleanUpperLine.startsWith('TIMESTAMPS')) {
             currentSection = 'TIMESTAMPS';
             continue;
-        } else if (upperLine.includes('SUMMARY') || upperLine.includes('STORYLINE')) {
+        } else if (cleanUpperLine.startsWith('SUMMARY') || cleanUpperLine.startsWith('STORYLINE')) {
             currentSection = 'SUMMARY';
             
             // Clean the header line itself
@@ -143,7 +152,7 @@ function parseGeminiOutput(text) {
                 break;
 
             case 'TIMESTAMPS':
-                // *** FIX: Clean the line to remove bold markdown (**) before checking ***
+                // *** FIX 2: Clean the line to remove bold markdown (**) before checking ***
                 const cleanHeaderLine = clean(trimmedLine);
 
                 // Check for category header with count: "1. 911 CALLS (3)" or "911 CALLS (3)" or just category name
@@ -493,4 +502,3 @@ if (typeof module !== 'undefined' && module.exports) {
     buildStructuredOutput
   };
 }
-
