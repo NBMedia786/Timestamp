@@ -143,13 +143,17 @@ function parseGeminiOutput(text) {
                 break;
 
             case 'TIMESTAMPS':
+                // *** FIX: Clean the line to remove bold markdown (**) before checking ***
+                const cleanHeaderLine = clean(trimmedLine);
+
                 // Check for category header with count: "1. 911 CALLS (3)" or "911 CALLS (3)" or just category name
                 // More flexible matching to catch various formats
                 const categoryKeywords = ['911', 'CCTV', 'FOOTAGE', 'INTERVIEW', 'BODYCAM', 'DASHCAM', 'INVESTIGATION', 'CALLS', 'GENERAL'];
                 
                 // Pattern 1: With count in parentheses - normalize category name
-                const countMatch = trimmedLine.match(/^\s*(?:\d+\.?\s*)?([A-Z0-9\s/&-]+?)\s*\((\d+)\)\s*$/i);
-                if (countMatch && !trimmedLine.includes('[') && !trimmedLine.includes(':')) {
+                // *** USE cleanHeaderLine FOR THE MATCH ***
+                const countMatch = cleanHeaderLine.match(/^\s*(?:\d+\.?\s*)?([A-Z0-9\s/&-]+?)\s*\((\d+)\)\s*$/i);
+                if (countMatch && !trimmedLine.includes('[') && !trimmedLine.includes(':')) { // Use trimmedLine for safety checks
                     const potentialCategory = clean(countMatch[1]);
                     if (potentialCategory && categoryKeywords.some(kw => potentialCategory.toUpperCase().includes(kw))) {
                         // Normalize category name to standard format
@@ -162,21 +166,21 @@ function parseGeminiOutput(text) {
                         else if (/INVESTIGATION/i.test(normalizedCategory)) normalizedCategory = 'INVESTIGATION';
                         
                         currentCategory = normalizedCategory;
-                        const count = parseInt(countMatch[2], 10) || 0;
                         if (!timestamps._categoryCounts) timestamps._categoryCounts = {};
-                        timestamps._categoryCounts[currentCategory] = count;
+                        timestamps._categoryCounts[currentCategory] = parseInt(countMatch[2], 10) || 0;
                         continue;
                     }
                 }
                 
                 // Pattern 2: Category name without count (more lenient) - normalize category name
+                // *** USE cleanHeaderLine FOR THE MATCH ***
                 if (!trimmedLine.includes('[') && !trimmedLine.includes(':') && trimmedLine.length < 50) {
-                    const upperTrimmed = trimmedLine.toUpperCase();
+                    const upperCleanLine = cleanHeaderLine.toUpperCase(); // Use cleaned line for keyword check
                     // Check if line contains known category keywords
                     for (const keyword of categoryKeywords) {
-                        if (upperTrimmed.includes(keyword) && upperTrimmed.length < 30) {
+                        if (upperCleanLine.includes(keyword) && upperCleanLine.length < 30) {
                             // Extract the full category name
-                            const categoryMatch = trimmedLine.match(/^\s*(?:\d+\.?\s*)?([A-Z0-9\s/&-]+?)\s*$/i);
+                            const categoryMatch = cleanHeaderLine.match(/^\s*(?:\d+\.?\s*)?([A-Z0-9\s/&-]+?)\s*$/i);
                             if (categoryMatch) {
                                 const potentialCategory = clean(categoryMatch[1]);
                                 if (potentialCategory && potentialCategory.length > 2) {
@@ -199,6 +203,9 @@ function parseGeminiOutput(text) {
                     }
                 }
                 
+                // *** IMPORTANT: The rest of the logic uses trimmedLine (the original) ***
+                // This is correct because timestamp lines are not bolded.
+
                 // Match new timestamp format: [MM:SS - MM:SS] - [Short Label] - [Full Description]
                 const tsMatch = trimmedLine.match(/\[([^\]]+)\]\s*-\s*([^-]+)\s*-\s*(.+)/);
                 if (tsMatch) {
