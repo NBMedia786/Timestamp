@@ -422,8 +422,6 @@ function updateStreamingContent(fullText) {
 
   if (/investigation/i.test(text)) categories.push('Investigation');
 
-  if (/interrogation/i.test(text)) categories.push('Interrogation');
-
   if (/cctv|footage/i.test(text)) categories.push('CCTV');
 
   if (/body\s*cam|bodycam/i.test(text)) categories.push('Body Cam');
@@ -2258,8 +2256,6 @@ function filterLabel(val) {
 
     case 'investigation': return 'Investigation';
 
-    case 'interrogation': return 'Interrogation';
-
     case 'interview': return 'Interview';
 
     case 'cctv': return 'CCTV';
@@ -2297,12 +2293,6 @@ function passesFilter(category) {
   if (activeTsFilter === 'investigation') {
 
     return /investigation|investigat/.test(c);
-
-  }
-
-  if (activeTsFilter === 'interrogation') {
-
-    return /interrogation|interrogat/.test(c);
 
   }
 

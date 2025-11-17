@@ -42,7 +42,7 @@ METADATA EXTRACTION (Extract from any visible text, audio, or context):
 
 TIMESTAMP ANALYSIS:
 
-Your task is to find events and assign them to one of the 7 categories below.
+Your task is to find events and assign them to one of the 6 categories below.
 
 **CRITICAL TIMESTAMP ACCURACY REQUIREMENTS:**
 
@@ -82,17 +82,15 @@ CATEGORY RULES (CRITICAL!):
 
 - **Priority 2: Event Categories** (Only use these if the source is unknown or not applicable, e.g., a formal sit-down interview):
 
-  - INTERROGATION
-
   - INTERVIEW
 
   - INVESTIGATION
 
 
 
-NEW RULE FOR INTERVIEWS/INTERROGATIONS:
+NEW RULE FOR INTERVIEWS:
 
-For any segments categorized as INTERVIEW or INTERROGATION, you MUST create a new timestamp for each distinct question-and-answer exchange.
+For any segments categorized as INTERVIEW, you MUST create a new timestamp for each distinct question-and-answer exchange.
 
 Do NOT create one single timestamp for the entire conversation.
 
@@ -107,8 +105,6 @@ Example of Correct Interview Formatting:
 - If an "Interview" or an "Investigation" is clearly recorded on **BODYCAM FOOTAGE**, you **MUST** list it **ONLY** under the **BODYCAM FOOTAGE** category.
 
 - If an "Investigation" is recorded on **CCTV FOOTAGE**, you **MUST** list it **ONLY** under the **CCTV FOOTAGE** category.
-
-- If an "Interrogation" is recorded on a **DASHCAM**, you **MUST** list it **ONLY** under the **DASHCAM FOOTAGE** category.
 
 - **This is not optional.** You must choose only one category, and the Source (Bodycam, CCTV, etc.) always wins.
 
@@ -144,15 +140,13 @@ Examples:
 
 2. CCTV FOOTAGE (8)     <-- An investigation seen on CCTV goes here
 
-3. INTERROGATION (0)  <-- An interrogation on a dashcam means this stays (0)
+3. INTERVIEW (0)      <-- An interview on a bodycam means this stays (0)
 
-4. INTERVIEW (0)      <-- An interview on a bodycam means this stays (0)
+4. BODYCAM FOOTAGE (5)  <-- All events captured by bodycams go here
 
-5. BODYCAM FOOTAGE (5)  <-- All events captured by bodycams go here
+5. DASHCAM FOOTAGE (2)  <-- All events captured by dashcams go here
 
-6. DASHCAM FOOTAGE (2)  <-- All events captured by dashcams go here
-
-7. INVESTIGATION (0)  <-- An investigation on CCTV means this stays (0)
+6. INVESTIGATION (0)  <-- An investigation on CCTV means this stays (0)
 
 
 
@@ -192,7 +186,7 @@ Example (for an investigation on CCTV):
 
 IMPORTANT REQUIREMENT FOR ALL CATEGORIES:
 
-You MUST output ALL 7 of the category headings, even if no timestamps are found.
+You MUST output ALL 6 of the category headings, even if no timestamps are found.
 
 For any category with a count of (0), you MUST explicitly output: "No [CATEGORY NAME] timestamps were found in this video."
 
@@ -211,6 +205,182 @@ After extracting all timestamps, provide a comprehensive summary that explains:
 - Main characters or subjects involved
 
 - Conclusion or outcome
+
+`;
+
+const PROMPT_STORYLINE_JSON = () => `
+
+You are 'The Sieve', a senior content curator for a premium investigative true crime studio. Your job is to identify "hidden gems" and rigorously reject "oversaturated" or "boring" cases, with a focus on lesser-known, psychologically complex narratives.
+
+CRITICAL TASK: Return ONLY a single, valid JSON object. Do not add any text, pre-amble, or explanation.
+
+---
+
+1. Persona & Goal
+
+- YOU FIND: Lesser-known, regionally or locally-significant cases with psychological complexity, moral ambiguity, or mystery.
+
+- YOU REJECT: Cases that are famous, globally covered, or covered by major documentaries. Also reject cases with simple, clear-cut motives, or those lacking suspense, mystery, or psychological depth.
+
+2. Core Definitions
+
+A. Content Classification
+
+- "Disturbing": Involves severe harm (murder, kidnapping, assault, psychological torture, major unsolved disappearances).
+
+- "Other": Non-disturbing crimes (property, simple theft) or non-crime content.
+
+B. Narrative Classification
+
+- "Twisted":  PASSED. The case is NOT world-famous. It has a complex, surprising, or ambiguous motive, mystery, or investigation. The narrative is NOT a simple "whodunit." The victim and suspect both have psychological depth.
+
+- "Straightforward":  FAILED. The case is either globally famous (Netflix, HBO, major news), or lacks depth, mystery, or suspense. The motive is clear or not psychologically complex.
+
+C. Content Format Filter
+
+- FAIL any video that is not a documentary-style narrative.
+
+- IMMEDIATE FAIL FORMATS: "Top 10" lists, "ASMR True Crime," "Makeup and Mystery," "5-Minute Crafts"-style, simple news clips without narrative.
+
+3. Key Rejection Signals (Include in Reason)
+
+- GLOBAL FAMOUSNESS: If the case is covered by major networks or has a Netflix/HBO documentary, FAIL and state: "Rejected: Case is globally famous and widely covered by major news outlets."
+
+- SIMPLE MOTIVE: If the motive is easily explained (e.g., financial gain, revenge) and lacks psychological depth, FAIL and state: "Rejected: Case has a simple, clear-cut motive with no psychological complexity."
+
+- LOW SUSPENSE: If the story is resolved quickly, without twists, ambiguity, or suspense, FAIL and state: "Rejected: Case lacks suspense and is resolved quickly with no mystery."
+
+- LACK OF MYSTERY: If the perpetrator is known early on or caught rapidly, with no investigation or mystery, FAIL and state: "Rejected: Case lacks mystery and investigation depth."
+
+- ABSOLUTE SIMPLICITY: If the case is a straightforward property crime, relationship drama, or "whodunit" solved in minutes, FAIL and state: "Rejected: Case is a simple, straightforward crime with no investigative depth."
+
+4. Output Format
+
+{
+
+  "storyline": "One-paragraph summary of the video's content.",
+
+  "classification": "Disturbing" | "Other",
+
+  "narrative_type": "Twisted" | "Straightforward",
+
+  "decision": "PASS" | "FAIL",
+
+  "reason": "1-2 sentence justification for the decision, including specific rejection reason (e.g., 'Rejected: Case is globally famous and widely covered by major news outlets.')",
+
+  "recommended_search_query": "High-quality Google search query for the case.",
+
+  "category": "Interview|Dashcam|Bodycam|Investigation|CCTV|911 Call|Audio Call"
+
+}
+
+5. Error Handling
+
+If analysis is not possible (e.g., safety policy, incomplete video), return:
+
+{
+
+  "storyline": "Unable to analyze video.",
+
+  "classification": "Error",
+
+  "narrative_type": "N/A",
+
+  "decision": "FAIL",
+
+  "reason": "[Explain the error here]",
+
+  "recommended_search_query": null,
+
+  "category": null
+
+}
+
+`;
+
+const PROMPT_SMART_TIMESTAMP_JSON = () => `
+
+Analyze the provided raw media file and perform the following for every segment:
+
+1. Multi-Modal Analysis:
+
+- Analyze both visual and audio cues to understand the context of each segment.
+
+- Identify key events, actions, and spoken dialogue.
+
+2. Segment Categorization:
+
+For each segment, assign the most accurate category from:
+
+- Interview: A structured question-and-answer session.
+
+- Dashcam: Continuous recording from a vehicle.
+
+- Bodycam: First-person, mobile perspective from an officer.
+
+- Investigation: Scene documentation, evidence collection, or search.
+
+- CCTV: Fixed, static surveillance view.
+
+- 911 Call: Emergency call with distressed caller and operator.
+
+- Audio Call: Dialogue between two parties without video.
+
+3. Timestamp Extraction:
+
+For each segment, provide:
+
+- Start timestamp - End timestamp - Brief description of the segment's content and key events
+
+4. Output Format:
+
+Present results as a list of segments, each with:
+
+- "start_timestamp"
+
+- "end_timestamp"
+
+- "category"
+
+- "description"
+
+Example Output:
+
+[
+
+{
+
+"start_timestamp": "00:00:00",
+
+"end_timestamp": "00:10:15",
+
+"category": "bodycam",
+
+"description": "Officer arrives at scene, begins documenting evidence."
+
+},
+
+{
+
+"start_timestamp": "00:10:15",
+
+"end_timestamp": "00:25:30",
+
+"category": "interview",
+
+"description": "Interviewer questions suspect about events leading to incident."
+
+}
+
+]
+
+This prompt ensures your model will:
+
+- Use both video and audio context to categorize each segment accurately.
+
+- Assign timestamps and descriptions for every segment.
+
+- Avoid relying solely on filenames or metadata, resulting in smarter, context-driven categorization.
 
 `;
 

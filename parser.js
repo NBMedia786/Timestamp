@@ -18,7 +18,6 @@ function categoryClass(category) {
   const c = (category || '').toLowerCase();
   if (/911/.test(c)) return 'cat-911';
   if (/investigation/.test(c)) return 'cat-investigation';
-  if (/interrogation/.test(c)) return 'cat-interrogation';
   if (/interview/.test(c)) return 'cat-interview';
   if (/cctv|footage/.test(c)) return 'cat-cctv';
   if (/body\s*cam/.test(c)) return 'cat-bodycam';
@@ -55,12 +54,7 @@ function detectCategoryFromText(description, label = '') {
         return 'CCTV FOOTAGE';
     }
     
-    // INTERROGATION - more adversarial/police questioning (check before interview)
-    if (/\binterrogation\b|\binterrogating\b|\binterrogated\b|\bsuspect\s*questioning|\bpolice\s*questioning|\bconfession|\bdenial|\bMiranda\s*rights|\bright\s*to\s*remain\s*silent|\bcoercion|\bpressure\s*to\s*confess/i.test(combinedText)) {
-        return 'INTERROGATION';
-    }
-    
-    // INTERVIEW - more formal/neutral conversations (check after interrogation)
+    // INTERVIEW - more formal/neutral conversations
     if (/\binterview\b|\binterviewing\b|\binterviewed\b|\bwitness\s*interview|\bmedia\s*interview|\bjob\s*interview|\bformal\s*interview|\bqa\s*session|\bquestion\s*and\s*answer|\bprofessional\s*discussion|\bconversation\s*with/i.test(combinedText)) {
         return 'INTERVIEW';
     }
@@ -71,11 +65,8 @@ function detectCategoryFromText(description, label = '') {
     }
     
     // Priority 2: Context-based detection (fallback for ambiguous cases)
-    // If contains questioning/interview terms but also police/adversarial context
+    // If contains questioning/interview terms
     if (/\bquestioning\b|\bquestioned\b/.test(combinedText)) {
-        if (/\bpolice|\bofficer|\bsuspect|\baccused|\bconfession|\bdenial|\bMiranda/i.test(combinedText)) {
-            return 'INTERROGATION';
-        }
         if (/\bwitness|\bmedia|\bjournalist|\bformal|\bprofessional/i.test(combinedText)) {
             return 'INTERVIEW';
         }
@@ -154,7 +145,7 @@ function parseGeminiOutput(text) {
             case 'TIMESTAMPS':
                 // Check for category header with count: "1. 911 CALLS (3)" or "911 CALLS (3)" or just category name
                 // More flexible matching to catch various formats
-                const categoryKeywords = ['911', 'CCTV', 'FOOTAGE', 'INTERROGATION', 'INTERVIEW', 'BODYCAM', 'DASHCAM', 'INVESTIGATION', 'CALLS', 'GENERAL'];
+                const categoryKeywords = ['911', 'CCTV', 'FOOTAGE', 'INTERVIEW', 'BODYCAM', 'DASHCAM', 'INVESTIGATION', 'CALLS', 'GENERAL'];
                 
                 // Pattern 1: With count in parentheses - normalize category name
                 const countMatch = trimmedLine.match(/^\s*(?:\d+\.?\s*)?([A-Z0-9\s/&-]+?)\s*\((\d+)\)\s*$/i);
@@ -165,7 +156,6 @@ function parseGeminiOutput(text) {
                         let normalizedCategory = potentialCategory.toUpperCase();
                         if (/911|EMERGENCY.*CALL/i.test(normalizedCategory)) normalizedCategory = '911 CALLS';
                         else if (/CCTV|SURVEILLANCE/i.test(normalizedCategory)) normalizedCategory = 'CCTV FOOTAGE';
-                        else if (/INTERROGATION/i.test(normalizedCategory)) normalizedCategory = 'INTERROGATION';
                         else if (/INTERVIEW/i.test(normalizedCategory)) normalizedCategory = 'INTERVIEW';
                         else if (/BODY.*CAM|BODYCAM/i.test(normalizedCategory)) normalizedCategory = 'BODYCAM FOOTAGE';
                         else if (/DASH.*CAM|DASHCAM/i.test(normalizedCategory)) normalizedCategory = 'DASHCAM FOOTAGE';
@@ -194,7 +184,6 @@ function parseGeminiOutput(text) {
                                     let normalizedCategory = potentialCategory.toUpperCase();
                                     if (/911|EMERGENCY.*CALL/i.test(normalizedCategory)) normalizedCategory = '911 CALLS';
                                     else if (/CCTV|SURVEILLANCE/i.test(normalizedCategory)) normalizedCategory = 'CCTV FOOTAGE';
-                                    else if (/INTERROGATION/i.test(normalizedCategory)) normalizedCategory = 'INTERROGATION';
                                     else if (/INTERVIEW/i.test(normalizedCategory)) normalizedCategory = 'INTERVIEW';
                                     else if (/BODY.*CAM|BODYCAM/i.test(normalizedCategory)) normalizedCategory = 'BODYCAM FOOTAGE';
                                     else if (/DASH.*CAM|DASHCAM/i.test(normalizedCategory)) normalizedCategory = 'DASHCAM FOOTAGE';
@@ -316,7 +305,6 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
     // Normalize category names to match expected format
     if (/911|emergency/i.test(cat)) cat = '911 CALLS';
     else if (/cctv|surveillance/i.test(cat)) cat = 'CCTV FOOTAGE';
-    else if (/interrogation/i.test(cat)) cat = 'INTERROGATION';
     else if (/interview/i.test(cat)) cat = 'INTERVIEW';
     else if (/body\s*cam|bodycam/i.test(cat)) cat = 'BODYCAM FOOTAGE';
     else if (/dash\s*cam|dashcam/i.test(cat)) cat = 'DASHCAM FOOTAGE';
@@ -330,7 +318,7 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
 
   // Check for "No [CATEGORY] timestamps were found" messages in the text
   const categoryNotFoundMessages = [];
-  const expectedCategories = ['911 CALLS', 'CCTV FOOTAGE', 'INTERROGATION', 'INTERVIEW', 'BODYCAM FOOTAGE', 'DASHCAM FOOTAGE', 'INVESTIGATION'];
+  const expectedCategories = ['911 CALLS', 'CCTV FOOTAGE', 'INTERVIEW', 'BODYCAM FOOTAGE', 'DASHCAM FOOTAGE', 'INVESTIGATION'];
   
   for (const expectedCat of expectedCategories) {
     const normalizedCat = expectedCat.toLowerCase().replace(/\s+/g, ' ');
@@ -349,7 +337,7 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
   let cardsHtml = '';
   
   // Sort categories: specific categories first, then GENERAL last
-  const categoryOrder = ['911 CALLS', 'CCTV FOOTAGE', 'INTERROGATION', 'INTERVIEW', 'BODYCAM FOOTAGE', 'DASHCAM FOOTAGE', 'INVESTIGATION', 'GENERAL'];
+  const categoryOrder = ['911 CALLS', 'CCTV FOOTAGE', 'INTERVIEW', 'BODYCAM FOOTAGE', 'DASHCAM FOOTAGE', 'INVESTIGATION', 'GENERAL'];
   const sortedCategories = Object.keys(grouped).sort((a, b) => {
     const aIndex = categoryOrder.findIndex(c => c === a.toUpperCase());
     const bIndex = categoryOrder.findIndex(c => c === b.toUpperCase());
