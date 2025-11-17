@@ -325,6 +325,8 @@ body {
   transition: all 0.25s ease;
   position: relative;
   overflow: hidden;
+  white-space: nowrap;
+  min-width: fit-content;
 }
 .btn.primary { 
   background: linear-gradient(135deg, var(--brand), var(--brand-2)); 
@@ -362,6 +364,11 @@ body {
   background: rgba(124, 196, 255, 0.15);
   border-color: rgba(124, 196, 255, 0.5);
   opacity: 1;
+}
+#logoutBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .link { background: none; border: none; color: var(--brand-2); cursor: pointer; text-decoration: underline; padding: 0; }
 
