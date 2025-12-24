@@ -469,16 +469,19 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
       </div>`;
     }).join('') : '';
 
-    // Category header with count and duration - separate brackets
+    // Category header with count and duration - separate brackets, duration on right
     const durationBadge = count > 0
-      ? ` <span class="category-duration" style="opacity: 0.85; text-transform: none;">(${categoryDurationStr})</span>`
+      ? `<span class="category-duration" style="opacity: 0.85; text-transform: none; flex-shrink: 0;">(${categoryDurationStr})</span>`
       : '';
 
 
     cardsHtml += `<div class="timestamp-category-group collapsed" data-category="${escapeHTML(category)}">
-      <button class="timestamp-category-title" data-category="${escapeHTML(category)}" type="button">
-        <span class="category-arrow">▶</span>
-        <span class="category-name">${categoryUpper} <span style="opacity: 0.9;">(${count})</span>${durationBadge}</span>
+      <button class="timestamp-category-title" data-category="${escapeHTML(category)}" type="button" style="display: flex; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box;">
+        <span style="display: flex; align-items: center;">
+          <span class="category-arrow">▶</span>
+          <span class="category-name">${categoryUpper} <span style="opacity: 0.9;">(${count})</span></span>
+        </span>
+        ${durationBadge}
       </button>
       <div class="timestamp-card-list hidden">
         ${hasItems ? cardItems : `<div class="muted" style="padding: 20px; text-align: center;">No ${escapeHTML(category)} timestamps were found in this video.</div>`}
