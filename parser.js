@@ -177,34 +177,43 @@ function parseGeminiOutput(text) {
 
         // Pattern 2: Category name without count (more lenient) - normalize category name
         // *** USE cleanHeaderLine FOR THE MATCH ***
-        if (!trimmedLine.includes('[') && !trimmedLine.includes(':') && trimmedLine.length < 50) {
-          const upperCleanLine = cleanHeaderLine.toUpperCase(); // Use cleaned line for keyword check
-          // Check if line contains known category keywords
-          for (const keyword of categoryKeywords) {
-            if (upperCleanLine.includes(keyword) && upperCleanLine.length < 30) {
-              // Extract the full category name
-              const categoryMatch = cleanHeaderLine.match(/^\s*(?:\d+\.?\s*)?([A-Z0-9\s/&-]+?)\s*$/i);
-              if (categoryMatch) {
-                const potentialCategory = clean(categoryMatch[1]);
-                if (potentialCategory && potentialCategory.length > 2) {
-                  // Normalize category name
-                  let normalizedCategory = potentialCategory.toUpperCase();
-                  if (/911|EMERGENCY.*CALL/i.test(normalizedCategory)) normalizedCategory = '911 CALLS';
-                  else if (/CCTV|SURVEILLANCE/i.test(normalizedCategory)) normalizedCategory = 'CCTV FOOTAGE';
-                  else if (/INTERVIEW/i.test(normalizedCategory)) normalizedCategory = 'INTERVIEW';
-                  else if (/BODY.*CAM|BODYCAM/i.test(normalizedCategory)) normalizedCategory = 'BODYCAM FOOTAGE';
-                  else if (/DASH.*CAM|DASHCAM/i.test(normalizedCategory)) normalizedCategory = 'DASHCAM FOOTAGE';
-                  else if (/INVESTIGATION/i.test(normalizedCategory)) normalizedCategory = 'INVESTIGATION';
+        // STRICTER CHECK: Must look like a category header (short, starts with number or is JUST the category name)
+        if (!trimmedLine.includes('[') && !trimmedLine.includes(':') && trimmedLine.length < 35) {
+          const upperCleanLine = cleanHeaderLine.toUpperCase();
 
-                  currentCategory = normalizedCategory;
-                  if (!timestamps._categoryCounts) timestamps._categoryCounts = {};
-                  timestamps._categoryCounts[currentCategory] = 0;
-                  continue;
+          // Must start with a number OR be a standalone category name (not part of a sentence)
+          const looksLikeCategoryHeader = /^\d+\.?\s*[A-Z]/.test(cleanHeaderLine) ||
+            /^(911\s*CALLS?|CCTV\s*FOOTAGE?|INTERVIEW|BODYCAM\s*FOOTAGE?|DASHCAM\s*FOOTAGE?|INVESTIGATION)\s*(\(\d+\))?$/i.test(cleanHeaderLine);
+
+          if (looksLikeCategoryHeader) {
+            // Check if line contains known category keywords
+            for (const keyword of categoryKeywords) {
+              if (upperCleanLine.includes(keyword) && upperCleanLine.length < 30) {
+                // Extract the full category name
+                const categoryMatch = cleanHeaderLine.match(/^\s*(?:\d+\.?\s*)?([A-Z0-9\s/&-]+?)\s*$/i);
+                if (categoryMatch) {
+                  const potentialCategory = clean(categoryMatch[1]);
+                  if (potentialCategory && potentialCategory.length > 2) {
+                    // Normalize category name
+                    let normalizedCategory = potentialCategory.toUpperCase();
+                    if (/911|EMERGENCY.*CALL/i.test(normalizedCategory)) normalizedCategory = '911 CALLS';
+                    else if (/CCTV|SURVEILLANCE/i.test(normalizedCategory)) normalizedCategory = 'CCTV FOOTAGE';
+                    else if (/INTERVIEW/i.test(normalizedCategory)) normalizedCategory = 'INTERVIEW';
+                    else if (/BODY.*CAM|BODYCAM/i.test(normalizedCategory)) normalizedCategory = 'BODYCAM FOOTAGE';
+                    else if (/DASH.*CAM|DASHCAM/i.test(normalizedCategory)) normalizedCategory = 'DASHCAM FOOTAGE';
+                    else if (/INVESTIGATION/i.test(normalizedCategory)) normalizedCategory = 'INVESTIGATION';
+
+                    currentCategory = normalizedCategory;
+                    if (!timestamps._categoryCounts) timestamps._categoryCounts = {};
+                    timestamps._categoryCounts[currentCategory] = 0;
+                    continue;
+                  }
                 }
               }
             }
           }
         }
+
 
         // *** IMPORTANT: The rest of the logic uses trimmedLine (the original) ***
         // This is correct because timestamp lines are not bolded.
