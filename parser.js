@@ -469,15 +469,15 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
       </div>`;
     }).join('') : '';
 
-    // Category header with count and duration - professional format
+    // Category header with count and duration - separate brackets
     const durationBadge = count > 0
-      ? `<span class="category-duration" style="opacity: 0.85; font-weight: 500;"> • ${categoryDurationStr}</span>`
+      ? ` <span class="category-duration" style="opacity: 0.85;">(${categoryDurationStr})</span>`
       : '';
 
     cardsHtml += `<div class="timestamp-category-group collapsed" data-category="${escapeHTML(category)}">
       <button class="timestamp-category-title" data-category="${escapeHTML(category)}" type="button">
         <span class="category-arrow">▶</span>
-        <span class="category-name">${categoryUpper} <span style="opacity: 0.9;">(${count}${durationBadge})</span></span>
+        <span class="category-name">${categoryUpper} <span style="opacity: 0.9;">(${count})</span>${durationBadge}</span>
       </button>
       <div class="timestamp-card-list hidden">
         ${hasItems ? cardItems : `<div class="muted" style="padding: 20px; text-align: center;">No ${escapeHTML(category)} timestamps were found in this video.</div>`}
@@ -500,9 +500,10 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
   // Add grand total footer if there are timestamps
   if (grandTotalClips > 0) {
     cardsHtml += `<div class="timestamp-grand-total" style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 12px; border: 1px solid rgba(99, 102, 241, 0.3); text-align: center;">
-      <span style="font-weight: 600; font-size: 1.1em; color: var(--text, #e2e8f0);">📊 TOTAL <span style="opacity: 0.9;">(${grandTotalClips} clips • ${grandTotalDurationStr})</span></span>
+      <span style="font-weight: 600; font-size: 1.1em; color: var(--text, #e2e8f0);">📊 TOTAL <span style="opacity: 0.9;">(${grandTotalClips} clips)</span> <span style="opacity: 0.85;">(${grandTotalDurationStr})</span></span>
     </div>`;
   }
+
 
 
   // Render to container
