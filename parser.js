@@ -471,8 +471,9 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
 
     // Category header with count and duration - separate brackets
     const durationBadge = count > 0
-      ? ` <span class="category-duration" style="opacity: 0.85;">(${categoryDurationStr})</span>`
+      ? ` <span class="category-duration" style="opacity: 0.85; text-transform: none;">(${categoryDurationStr})</span>`
       : '';
+
 
     cardsHtml += `<div class="timestamp-category-group collapsed" data-category="${escapeHTML(category)}">
       <button class="timestamp-category-title" data-category="${escapeHTML(category)}" type="button">
@@ -500,9 +501,10 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
   // Add grand total footer if there are timestamps
   if (grandTotalClips > 0) {
     cardsHtml += `<div class="timestamp-grand-total" style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 12px; border: 1px solid rgba(99, 102, 241, 0.3); text-align: center;">
-      <span style="font-weight: 600; font-size: 1.1em; color: var(--text, #e2e8f0);">📊 TOTAL <span style="opacity: 0.9;">(${grandTotalClips} clips)</span> <span style="opacity: 0.85;">(${grandTotalDurationStr})</span></span>
+      <span style="font-weight: 600; font-size: 1.1em; color: var(--text, #e2e8f0);">📊 TOTAL <span style="opacity: 0.9;">(${grandTotalClips} clips)</span> <span style="opacity: 0.85; text-transform: none;">(${grandTotalDurationStr})</span></span>
     </div>`;
   }
+
 
 
 
