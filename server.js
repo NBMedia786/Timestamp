@@ -68,15 +68,25 @@ CATEGORY RULES (CRITICAL!):
 
 
 
+
+
 - **Priority 1: Source Categories** (If you know the *source* of the clip, use this category):
 
-  - 911 CALLS (Analyze BOTH audio and video. This category is for emergency calls, which may include audio-only calls, video calls, or recordings that show the call center/dispatch environment.)
+  **CRITICAL: Use VISUAL and AUDIO analysis to determine the source:**
+  - Look for on-screen text/watermarks showing source type (e.g., "BODYCAM", "DASHCAM", "CCTV")
+  - Analyze camera perspective: first-person shaky = bodycam, dashboard view = dashcam, fixed overhead = CCTV
+  - Read any visible camera IDs, date/time overlays, or agency watermarks
+  - Listen for audio quality clues: phone line = 911 call, radio chatter = police footage
 
-  - CCTV FOOTAGE (Fixed camera source)
+  - 911 CALLS (ONLY for actual emergency dispatch calls. This is audio of a caller speaking to a 911 operator/dispatcher. If someone is simply on a phone call during bodycam/dashcam footage, that is NOT 911 CALLS - use the source category instead.)
 
-  - BODYCAM FOOTAGE (Officer-worn camera source)
+  - CCTV FOOTAGE (Fixed camera source - static view, no movement, surveillance-style)
 
-  - DASHCAM FOOTAGE (Vehicle camera source)
+  - BODYCAM FOOTAGE (Officer-worn camera - first-person perspective, moves with the person)
+
+  - DASHCAM FOOTAGE (Vehicle camera source - view through windshield, dashboard perspective)
+
+
 
 
 

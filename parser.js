@@ -25,75 +25,69 @@ function categoryClass(category) {
   return '';
 }
 
-// Smart category detection function with priority-based matching
+// Smart category detection function with priority-based matching (fallback for when AI doesn't categorize properly)
 function detectCategoryFromText(description, label = '') {
-  // THIS FUNCTION IS DISABLED PER YOUR REQUEST
-  // TO MAKE THE STRUCTURED VIEW MATCH THE RAW OUTPUT.
-  // To re-enable, replace "return null;" with the logic below.
-  return null;
-
-  /*
   if (!description && !label) return null;
-  
+
   // Combine description and label for analysis
   const combinedText = `${description || ''} ${label || ''}`.toLowerCase().trim();
   if (!combinedText) return null;
-  
+
   // Priority 1: Very specific patterns (highest priority to avoid false matches)
   // 911 CALLS - must be checked first before other call-related terms
   if (/\b911\b|\bemergency\s*call|\bdispatch\s*center|\bemergency\s*dispatch|\b911\s*operator|\bemergency\s*operator|\bemergency\s*response|\bpolice\s*dispatch/i.test(combinedText)) {
-      return '911 CALLS';
+    return '911 CALLS';
   }
-  
+
   // BODYCAM FOOTAGE - specific camera types (check before general camera terms)
   if (/\bbody\s*cam\b|\bbodycam\b|\bbody\s*camera|\bofficer\s*cam|\bofficer\s*camera|\bpolice\s*body\s*cam|\bworn\s*camera|\bchest\s*camera|\bshoulder\s*camera/i.test(combinedText)) {
-      return 'BODYCAM FOOTAGE';
+    return 'BODYCAM FOOTAGE';
   }
-  
+
   // DASHCAM FOOTAGE - vehicle-mounted cameras
   if (/\bdash\s*cam\b|\bdashcam\b|\bdashboard\s*camera|\bvehicle\s*cam|\bcar\s*camera|\bpolice\s*car\s*camera|\btraffic\s*stop|\broad\s*stop|\bhighway\s*patrol/i.test(combinedText)) {
-      return 'DASHCAM FOOTAGE';
+    return 'DASHCAM FOOTAGE';
   }
-  
+
   // CCTV FOOTAGE - surveillance cameras (check before other footage types)
   if (/\bcctv\b|\bsurveillance\s*camera|\bsecurity\s*camera|\bsecurity\s*footage|\bsurveillance\s*footage|\bsecurity\s*system|\bmonitoring\s*camera|\bstreet\s*camera|\bstore\s*camera|\bbuilding\s*camera/i.test(combinedText)) {
-      return 'CCTV FOOTAGE';
+    return 'CCTV FOOTAGE';
   }
-  
+
   // INTERVIEW - more formal/neutral conversations
   if (/\binterview\b|\binterviewing\b|\binterviewed\b|\bwitness\s*interview|\bmedia\s*interview|\bjob\s*interview|\bformal\s*interview|\bqa\s*session|\bquestion\s*and\s*answer|\bprofessional\s*discussion|\bconversation\s*with/i.test(combinedText)) {
-      return 'INTERVIEW';
+    return 'INTERVIEW';
   }
-  
+
   // INVESTIGATION - crime scene and evidence work
   if (/\binvestigation\b|\binvestigating\b|\binvestigators?\b|\bcrime\s*scene|\bevidence\s*collection|\bevidence\s*gathering|\bdetective|\bforensic|\bscene\s*analysis|\bcase\s*development|\bkey\s*finding|\bbreakthrough|\bdiscovery\s*of\s*evidence/i.test(combinedText)) {
-      return 'INVESTIGATION';
+    return 'INVESTIGATION';
   }
-  
+
   // Priority 2: Context-based detection (fallback for ambiguous cases)
   // If contains questioning/interview terms
   if (/\bquestioning\b|\bquestioned\b/.test(combinedText)) {
-      if (/\bwitness|\bmedia|\bjournalist|\bformal|\bprofessional/i.test(combinedText)) {
-          return 'INTERVIEW';
-      }
+    if (/\bwitness|\bmedia|\bjournalist|\bformal|\bprofessional/i.test(combinedText)) {
+      return 'INTERVIEW';
+    }
   }
-  
+
   // Camera-related but not specific enough - check context
   if (/\bcamera|\bfootage|\brecording|\bvideo/.test(combinedText)) {
-      if (/\bpolice\s*officer|\bofficer\s*interaction|\bworn|\bbody/.test(combinedText)) {
-          return 'BODYCAM FOOTAGE';
-      }
-      if (/\bvehicle|\bcar|\bdash|\btraffic|\broad/.test(combinedText)) {
-          return 'DASHCAM FOOTAGE';
-      }
-      if (/\bsurveillance|\bsecurity|\bcctv|\bmonitoring/.test(combinedText)) {
-          return 'CCTV FOOTAGE';
-      }
+    if (/\bpolice\s*officer|\bofficer\s*interaction|\bworn|\bbody/.test(combinedText)) {
+      return 'BODYCAM FOOTAGE';
+    }
+    if (/\bvehicle|\bcar|\bdash|\btraffic|\broad/.test(combinedText)) {
+      return 'DASHCAM FOOTAGE';
+    }
+    if (/\bsurveillance|\bsecurity|\bcctv|\bmonitoring/.test(combinedText)) {
+      return 'CCTV FOOTAGE';
+    }
   }
-  
+
   return null; // No match found
-  */
 }
+
 
 function parseGeminiOutput(text) {
   if (!text) return { metadata: {}, timestamps: [], summary: '' };
@@ -286,6 +280,39 @@ function timeToSeconds(ts) {
   return 0;
 }
 
+// Parse a single time string like "00:45" or "01:30:15" to seconds
+function parseTimeToSeconds(timeStr) {
+  const clean = (timeStr || '').trim().replace(/[\[\]]/g, '');
+  const parts = clean.split(':').map(x => parseInt(x, 10));
+  if (parts.some(isNaN)) return 0;
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 1) return parts[0];
+  return 0;
+}
+
+// Calculate duration from a timestamp range like "00:00 - 00:30" or "[00:00 - 00:30]"
+function calculateDuration(timeStr) {
+  const clean = (timeStr || '').replace(/[\[\]]/g, '').trim();
+  const parts = clean.split(' - ');
+  if (parts.length !== 2) return 0;
+  const startSec = parseTimeToSeconds(parts[0]);
+  const endSec = parseTimeToSeconds(parts[1]);
+  return Math.max(0, endSec - startSec);
+}
+
+// Format seconds to "MM:SS" or "HH:MM:SS"
+function formatDuration(totalSeconds) {
+  if (!isFinite(totalSeconds) || totalSeconds <= 0) return '0:00';
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = Math.floor(totalSeconds % 60);
+  if (hours > 0) {
+    return `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
 function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTableWrap, metaBody, passesFilter = () => true, filterLabel = () => '') {
   if (!text || !text.trim()) {
     // Clear everything if no text
@@ -419,6 +446,15 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
     // This ensures the displayed count matches the actual number of timestamp cards
     const count = hasItems ? items.length : 0;
 
+    // Calculate total duration for this category
+    let categoryDurationSeconds = 0;
+    if (hasItems) {
+      items.forEach(it => {
+        categoryDurationSeconds += calculateDuration(it.time || '');
+      });
+    }
+    const categoryDurationStr = formatDuration(categoryDurationSeconds);
+
     // Build card grid items: time pill on top, description below
     const cardItems = hasItems ? items.map(it => {
       const timeStr = escapeHTML(it.time || '');
@@ -432,14 +468,36 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
       </div>`;
     }).join('') : '';
 
+    // Category header with count and duration
+    const durationDisplay = count > 0 ? ` - ${categoryDurationStr} total` : '';
+
     cardsHtml += `<div class="timestamp-category-group collapsed" data-category="${escapeHTML(category)}">
       <button class="timestamp-category-title" data-category="${escapeHTML(category)}" type="button">
         <span class="category-arrow">▶</span>
-        <span class="category-name">${categoryUpper} (${count})</span>
+        <span class="category-name">${categoryUpper} (${count})${durationDisplay}</span>
       </button>
       <div class="timestamp-card-list hidden">
         ${hasItems ? cardItems : `<div class="muted" style="padding: 20px; text-align: center;">No ${escapeHTML(category)} timestamps were found in this video.</div>`}
       </div>
+    </div>`;
+  }
+
+  // Calculate grand total across all categories
+  let grandTotalClips = 0;
+  let grandTotalSeconds = 0;
+  for (const category of Object.keys(grouped)) {
+    const items = grouped[category] || [];
+    grandTotalClips += items.length;
+    items.forEach(it => {
+      grandTotalSeconds += calculateDuration(it.time || '');
+    });
+  }
+  const grandTotalDurationStr = formatDuration(grandTotalSeconds);
+
+  // Add grand total footer if there are timestamps
+  if (grandTotalClips > 0) {
+    cardsHtml += `<div class="timestamp-grand-total" style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 12px; border: 1px solid rgba(99, 102, 241, 0.3); text-align: center;">
+      <span style="font-weight: 600; font-size: 1.1em; color: var(--text, #e2e8f0);">📊 Total: ${grandTotalClips} clips - ${grandTotalDurationStr}</span>
     </div>`;
   }
 
@@ -508,7 +566,7 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
 }
 
 // Export functions for use in other files (ES6 modules)
-export { escapeHTML, parseAndPill, categoryClass, parseGeminiOutput, timeToSeconds, buildStructuredOutput };
+export { escapeHTML, parseAndPill, categoryClass, parseGeminiOutput, timeToSeconds, buildStructuredOutput, calculateDuration, formatDuration };
 
 // Also support CommonJS for compatibility
 if (typeof module !== 'undefined' && module.exports) {
@@ -518,6 +576,9 @@ if (typeof module !== 'undefined' && module.exports) {
     categoryClass,
     parseGeminiOutput,
     timeToSeconds,
-    buildStructuredOutput
+    buildStructuredOutput,
+    calculateDuration,
+    formatDuration
   };
 }
+
