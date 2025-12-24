@@ -27,259 +27,259 @@ function categoryClass(category) {
 
 // Smart category detection function with priority-based matching
 function detectCategoryFromText(description, label = '') {
-    // THIS FUNCTION IS DISABLED PER YOUR REQUEST
-    // TO MAKE THE STRUCTURED VIEW MATCH THE RAW OUTPUT.
-    // To re-enable, replace "return null;" with the logic below.
-    return null;
+  // THIS FUNCTION IS DISABLED PER YOUR REQUEST
+  // TO MAKE THE STRUCTURED VIEW MATCH THE RAW OUTPUT.
+  // To re-enable, replace "return null;" with the logic below.
+  return null;
 
-    /*
-    if (!description && !label) return null;
-    
-    // Combine description and label for analysis
-    const combinedText = `${description || ''} ${label || ''}`.toLowerCase().trim();
-    if (!combinedText) return null;
-    
-    // Priority 1: Very specific patterns (highest priority to avoid false matches)
-    // 911 CALLS - must be checked first before other call-related terms
-    if (/\b911\b|\bemergency\s*call|\bdispatch\s*center|\bemergency\s*dispatch|\b911\s*operator|\bemergency\s*operator|\bemergency\s*response|\bpolice\s*dispatch/i.test(combinedText)) {
-        return '911 CALLS';
-    }
-    
-    // BODYCAM FOOTAGE - specific camera types (check before general camera terms)
-    if (/\bbody\s*cam\b|\bbodycam\b|\bbody\s*camera|\bofficer\s*cam|\bofficer\s*camera|\bpolice\s*body\s*cam|\bworn\s*camera|\bchest\s*camera|\bshoulder\s*camera/i.test(combinedText)) {
-        return 'BODYCAM FOOTAGE';
-    }
-    
-    // DASHCAM FOOTAGE - vehicle-mounted cameras
-    if (/\bdash\s*cam\b|\bdashcam\b|\bdashboard\s*camera|\bvehicle\s*cam|\bcar\s*camera|\bpolice\s*car\s*camera|\btraffic\s*stop|\broad\s*stop|\bhighway\s*patrol/i.test(combinedText)) {
-        return 'DASHCAM FOOTAGE';
-    }
-    
-    // CCTV FOOTAGE - surveillance cameras (check before other footage types)
-    if (/\bcctv\b|\bsurveillance\s*camera|\bsecurity\s*camera|\bsecurity\s*footage|\bsurveillance\s*footage|\bsecurity\s*system|\bmonitoring\s*camera|\bstreet\s*camera|\bstore\s*camera|\bbuilding\s*camera/i.test(combinedText)) {
-        return 'CCTV FOOTAGE';
-    }
-    
-    // INTERVIEW - more formal/neutral conversations
-    if (/\binterview\b|\binterviewing\b|\binterviewed\b|\bwitness\s*interview|\bmedia\s*interview|\bjob\s*interview|\bformal\s*interview|\bqa\s*session|\bquestion\s*and\s*answer|\bprofessional\s*discussion|\bconversation\s*with/i.test(combinedText)) {
-        return 'INTERVIEW';
-    }
-    
-    // INVESTIGATION - crime scene and evidence work
-    if (/\binvestigation\b|\binvestigating\b|\binvestigators?\b|\bcrime\s*scene|\bevidence\s*collection|\bevidence\s*gathering|\bdetective|\bforensic|\bscene\s*analysis|\bcase\s*development|\bkey\s*finding|\bbreakthrough|\bdiscovery\s*of\s*evidence/i.test(combinedText)) {
-        return 'INVESTIGATION';
-    }
-    
-    // Priority 2: Context-based detection (fallback for ambiguous cases)
-    // If contains questioning/interview terms
-    if (/\bquestioning\b|\bquestioned\b/.test(combinedText)) {
-        if (/\bwitness|\bmedia|\bjournalist|\bformal|\bprofessional/i.test(combinedText)) {
-            return 'INTERVIEW';
-        }
-    }
-    
-    // Camera-related but not specific enough - check context
-    if (/\bcamera|\bfootage|\brecording|\bvideo/.test(combinedText)) {
-        if (/\bpolice\s*officer|\bofficer\s*interaction|\bworn|\bbody/.test(combinedText)) {
-            return 'BODYCAM FOOTAGE';
-        }
-        if (/\bvehicle|\bcar|\bdash|\btraffic|\broad/.test(combinedText)) {
-            return 'DASHCAM FOOTAGE';
-        }
-        if (/\bsurveillance|\bsecurity|\bcctv|\bmonitoring/.test(combinedText)) {
-            return 'CCTV FOOTAGE';
-        }
-    }
-    
-    return null; // No match found
-    */
+  /*
+  if (!description && !label) return null;
+  
+  // Combine description and label for analysis
+  const combinedText = `${description || ''} ${label || ''}`.toLowerCase().trim();
+  if (!combinedText) return null;
+  
+  // Priority 1: Very specific patterns (highest priority to avoid false matches)
+  // 911 CALLS - must be checked first before other call-related terms
+  if (/\b911\b|\bemergency\s*call|\bdispatch\s*center|\bemergency\s*dispatch|\b911\s*operator|\bemergency\s*operator|\bemergency\s*response|\bpolice\s*dispatch/i.test(combinedText)) {
+      return '911 CALLS';
+  }
+  
+  // BODYCAM FOOTAGE - specific camera types (check before general camera terms)
+  if (/\bbody\s*cam\b|\bbodycam\b|\bbody\s*camera|\bofficer\s*cam|\bofficer\s*camera|\bpolice\s*body\s*cam|\bworn\s*camera|\bchest\s*camera|\bshoulder\s*camera/i.test(combinedText)) {
+      return 'BODYCAM FOOTAGE';
+  }
+  
+  // DASHCAM FOOTAGE - vehicle-mounted cameras
+  if (/\bdash\s*cam\b|\bdashcam\b|\bdashboard\s*camera|\bvehicle\s*cam|\bcar\s*camera|\bpolice\s*car\s*camera|\btraffic\s*stop|\broad\s*stop|\bhighway\s*patrol/i.test(combinedText)) {
+      return 'DASHCAM FOOTAGE';
+  }
+  
+  // CCTV FOOTAGE - surveillance cameras (check before other footage types)
+  if (/\bcctv\b|\bsurveillance\s*camera|\bsecurity\s*camera|\bsecurity\s*footage|\bsurveillance\s*footage|\bsecurity\s*system|\bmonitoring\s*camera|\bstreet\s*camera|\bstore\s*camera|\bbuilding\s*camera/i.test(combinedText)) {
+      return 'CCTV FOOTAGE';
+  }
+  
+  // INTERVIEW - more formal/neutral conversations
+  if (/\binterview\b|\binterviewing\b|\binterviewed\b|\bwitness\s*interview|\bmedia\s*interview|\bjob\s*interview|\bformal\s*interview|\bqa\s*session|\bquestion\s*and\s*answer|\bprofessional\s*discussion|\bconversation\s*with/i.test(combinedText)) {
+      return 'INTERVIEW';
+  }
+  
+  // INVESTIGATION - crime scene and evidence work
+  if (/\binvestigation\b|\binvestigating\b|\binvestigators?\b|\bcrime\s*scene|\bevidence\s*collection|\bevidence\s*gathering|\bdetective|\bforensic|\bscene\s*analysis|\bcase\s*development|\bkey\s*finding|\bbreakthrough|\bdiscovery\s*of\s*evidence/i.test(combinedText)) {
+      return 'INVESTIGATION';
+  }
+  
+  // Priority 2: Context-based detection (fallback for ambiguous cases)
+  // If contains questioning/interview terms
+  if (/\bquestioning\b|\bquestioned\b/.test(combinedText)) {
+      if (/\bwitness|\bmedia|\bjournalist|\bformal|\bprofessional/i.test(combinedText)) {
+          return 'INTERVIEW';
+      }
+  }
+  
+  // Camera-related but not specific enough - check context
+  if (/\bcamera|\bfootage|\brecording|\bvideo/.test(combinedText)) {
+      if (/\bpolice\s*officer|\bofficer\s*interaction|\bworn|\bbody/.test(combinedText)) {
+          return 'BODYCAM FOOTAGE';
+      }
+      if (/\bvehicle|\bcar|\bdash|\btraffic|\broad/.test(combinedText)) {
+          return 'DASHCAM FOOTAGE';
+      }
+      if (/\bsurveillance|\bsecurity|\bcctv|\bmonitoring/.test(combinedText)) {
+          return 'CCTV FOOTAGE';
+      }
+  }
+  
+  return null; // No match found
+  */
 }
 
 function parseGeminiOutput(text) {
-    if (!text) return { metadata: {}, timestamps: [], summary: '' };
+  if (!text) return { metadata: {}, timestamps: [], summary: '' };
 
-    const lines = text.split(/\r?\n/);
-    let metadata = {};
-    let timestamps = [];
-    let summary = '';
+  const lines = text.split(/\r?\n/);
+  let metadata = {};
+  let timestamps = [];
+  let summary = '';
 
-    let currentSection = '';
-    let currentCategory = 'General';
+  let currentSection = '';
+  let currentCategory = 'General';
 
-    // A helper to strip asterisks and whitespace from the start/end
-    const clean = (s) => (s || '').trim().replace(/^[\*\s]+|[\*\s]+$/g, '');
+  // A helper to strip asterisks and whitespace from the start/end
+  const clean = (s) => (s || '').trim().replace(/^[\*\s]+|[\*\s]+$/g, '');
 
-    for (const line of lines) {
-        const trimmedLine = line.trim();
-        const upperLine = trimmedLine.toUpperCase();
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    const upperLine = trimmedLine.toUpperCase();
 
-        if (trimmedLine.length === 0) continue;
+    if (trimmedLine.length === 0) continue;
 
-        // *** FIX 1: Use clean() and startsWith() for strict header matching ***
-        const cleanUpperLine = clean(upperLine);
+    // *** FIX 1: Use clean() and startsWith() for strict header matching ***
+    const cleanUpperLine = clean(upperLine);
 
-        if (cleanUpperLine.startsWith('METADATA') && !cleanUpperLine.includes('EXTRACTION')) {
-            currentSection = 'METADATA';
-            continue;
-        } else if (cleanUpperLine.startsWith('TIMESTAMPS')) {
-            currentSection = 'TIMESTAMPS';
-            continue;
-        } else if (cleanUpperLine.startsWith('SUMMARY') || cleanUpperLine.startsWith('STORYLINE')) {
-            currentSection = 'SUMMARY';
-            
-            // Clean the header line itself
-            let summaryPart = line.split(/AND STORYLINE|SUMMARY/i).pop() || '';
-            summaryPart = summaryPart.replace(/^[\*\s:]+/g, ''); // Remove `**:`
-            
-            if (summaryPart.trim()) {
-                summary += summaryPart.trim() + '\n';
-            }
-            continue;
-        }
+    if (cleanUpperLine.startsWith('METADATA') && !cleanUpperLine.includes('EXTRACTION')) {
+      currentSection = 'METADATA';
+      continue;
+    } else if (cleanUpperLine.startsWith('TIMESTAMPS')) {
+      currentSection = 'TIMESTAMPS';
+      continue;
+    } else if (cleanUpperLine.startsWith('SUMMARY') || cleanUpperLine.startsWith('STORYLINE')) {
+      currentSection = 'SUMMARY';
 
-        switch (currentSection) {
-            case 'METADATA':
-                const metaMatch = trimmedLine.match(/^[\*\-\s]*([^:]+?)\s*:\s*(.*)/);
-                
-                if (metaMatch && metaMatch[2] && metaMatch[2].trim()) {
-                    const key = clean(metaMatch[1]);
-                    const value = clean(metaMatch[2]);
-                    
-                    if (key && value && !/\[extracted.*\]/i.test(value)) {
-                        metadata[key] = value;
-                    }
-                }
-                break;
+      // Clean the header line itself
+      let summaryPart = line.split(/AND STORYLINE|SUMMARY/i).pop() || '';
+      summaryPart = summaryPart.replace(/^[\*\s:]+/g, ''); // Remove `**:`
 
-            case 'TIMESTAMPS':
-                // *** FIX 2: Clean the line to remove bold markdown (**) before checking ***
-                const cleanHeaderLine = clean(trimmedLine);
-
-                // Check for category header with count: "1. 911 CALLS (3)" or "911 CALLS (3)" or just category name
-                // More flexible matching to catch various formats
-                const categoryKeywords = ['911', 'CCTV', 'FOOTAGE', 'INTERVIEW', 'BODYCAM', 'DASHCAM', 'INVESTIGATION', 'CALLS', 'GENERAL'];
-                
-                // Pattern 1: With count in parentheses - normalize category name
-                // *** USE cleanHeaderLine FOR THE MATCH ***
-                const countMatch = cleanHeaderLine.match(/^\s*(?:\d+\.?\s*)?([A-Z0-9\s/&-]+?)\s*\((\d+)\)\s*$/i);
-                if (countMatch && !trimmedLine.includes('[') && !trimmedLine.includes(':')) { // Use trimmedLine for safety checks
-                    const potentialCategory = clean(countMatch[1]);
-                    if (potentialCategory && categoryKeywords.some(kw => potentialCategory.toUpperCase().includes(kw))) {
-                        // Normalize category name to standard format
-                        let normalizedCategory = potentialCategory.toUpperCase();
-                        if (/911|EMERGENCY.*CALL/i.test(normalizedCategory)) normalizedCategory = '911 CALLS';
-                        else if (/CCTV|SURVEILLANCE/i.test(normalizedCategory)) normalizedCategory = 'CCTV FOOTAGE';
-                        else if (/INTERVIEW/i.test(normalizedCategory)) normalizedCategory = 'INTERVIEW';
-                        else if (/BODY.*CAM|BODYCAM/i.test(normalizedCategory)) normalizedCategory = 'BODYCAM FOOTAGE';
-                        else if (/DASH.*CAM|DASHCAM/i.test(normalizedCategory)) normalizedCategory = 'DASHCAM FOOTAGE';
-                        else if (/INVESTIGATION/i.test(normalizedCategory)) normalizedCategory = 'INVESTIGATION';
-                        
-                        currentCategory = normalizedCategory;
-                        if (!timestamps._categoryCounts) timestamps._categoryCounts = {};
-                        timestamps._categoryCounts[currentCategory] = parseInt(countMatch[2], 10) || 0;
-                        continue;
-                    }
-                }
-                
-                // Pattern 2: Category name without count (more lenient) - normalize category name
-                // *** USE cleanHeaderLine FOR THE MATCH ***
-                if (!trimmedLine.includes('[') && !trimmedLine.includes(':') && trimmedLine.length < 50) {
-                    const upperCleanLine = cleanHeaderLine.toUpperCase(); // Use cleaned line for keyword check
-                    // Check if line contains known category keywords
-                    for (const keyword of categoryKeywords) {
-                        if (upperCleanLine.includes(keyword) && upperCleanLine.length < 30) {
-                            // Extract the full category name
-                            const categoryMatch = cleanHeaderLine.match(/^\s*(?:\d+\.?\s*)?([A-Z0-9\s/&-]+?)\s*$/i);
-                            if (categoryMatch) {
-                                const potentialCategory = clean(categoryMatch[1]);
-                                if (potentialCategory && potentialCategory.length > 2) {
-                                    // Normalize category name
-                                    let normalizedCategory = potentialCategory.toUpperCase();
-                                    if (/911|EMERGENCY.*CALL/i.test(normalizedCategory)) normalizedCategory = '911 CALLS';
-                                    else if (/CCTV|SURVEILLANCE/i.test(normalizedCategory)) normalizedCategory = 'CCTV FOOTAGE';
-                                    else if (/INTERVIEW/i.test(normalizedCategory)) normalizedCategory = 'INTERVIEW';
-                                    else if (/BODY.*CAM|BODYCAM/i.test(normalizedCategory)) normalizedCategory = 'BODYCAM FOOTAGE';
-                                    else if (/DASH.*CAM|DASHCAM/i.test(normalizedCategory)) normalizedCategory = 'DASHCAM FOOTAGE';
-                                    else if (/INVESTIGATION/i.test(normalizedCategory)) normalizedCategory = 'INVESTIGATION';
-                                    
-                                    currentCategory = normalizedCategory;
-                                    if (!timestamps._categoryCounts) timestamps._categoryCounts = {};
-                                    timestamps._categoryCounts[currentCategory] = 0;
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // *** IMPORTANT: The rest of the logic uses trimmedLine (the original) ***
-                // This is correct because timestamp lines are not bolded.
-
-                // Match new timestamp format: [MM:SS - MM:SS] - [Short Label] - [Full Description]
-                const tsMatch = trimmedLine.match(/\[([^\]]+)\]\s*-\s*([^-]+)\s*-\s*(.+)/);
-                if (tsMatch) {
-                    const timePart = clean(tsMatch[1]);
-                    const shortLabel = clean(tsMatch[2]);
-                    const fullDescription = clean(tsMatch[3]);
-                    
-                    // Smart category detection from description and label
-                    let detectedCategory = null; // DISABLED: detectCategoryFromText(fullDescription, shortLabel);
-                    
-                    // Use detected category first, then current category if not General, finally General
-                    const finalCategory = currentCategory || 'General';
-                    
-                    timestamps.push({
-                        time: timePart,
-                        label: shortLabel || '',
-                        description: fullDescription || shortLabel || 'No description',
-                        category: finalCategory
-                    });
-                } else {
-                    // Fallback for old format: [MM:SS - MM:SS] - Description
-                    const oldTsMatch = trimmedLine.match(/\[([^\]]+)\]\s*-?\s*(.+)?/);
-                    if (oldTsMatch) {
-                        const timePart = clean(oldTsMatch[1]);
-                        let description = (oldTsMatch[2] || '').trim();
-                        if (!description || description.length === 0) {
-                            description = 'Timestamp marker';
-                        }
-                        
-                        // Smart category detection from description
-                        let detectedCategory = null; // DISABLED: detectCategoryFromText(description);
-                        
-                        const finalCategory = currentCategory || 'General';
-                        
-                        timestamps.push({
-                            time: timePart,
-                            label: '',
-                            description: clean(description) || 'No description',
-                            category: finalCategory
-                        });
-                    }
-                }
-                break;
-
-            case 'SUMMARY':
-                summary += line + '\n';
-                break;
-        }
+      if (summaryPart.trim()) {
+        summary += summaryPart.trim() + '\n';
+      }
+      continue;
     }
-    
-    // Final cleanup of the whole summary string
-    const finalSummary = summary.trim().replace(/^[\*\s]+|[\*\s]+$/g, '');
-    
-    // Extract category counts if they exist
-    const categoryCounts = timestamps._categoryCounts || {};
-    // Remove the temporary _categoryCounts property
-    const cleanTimestamps = timestamps.filter(t => t && t.time);
-    
-    return { metadata, timestamps: cleanTimestamps, summary: finalSummary, categoryCounts };
+
+    switch (currentSection) {
+      case 'METADATA':
+        const metaMatch = trimmedLine.match(/^[\*\-\s]*([^:]+?)\s*:\s*(.*)/);
+
+        if (metaMatch && metaMatch[2] && metaMatch[2].trim()) {
+          const key = clean(metaMatch[1]);
+          const value = clean(metaMatch[2]);
+
+          if (key && value && !/\[extracted.*\]/i.test(value)) {
+            metadata[key] = value;
+          }
+        }
+        break;
+
+      case 'TIMESTAMPS':
+        // *** FIX 2: Clean the line to remove bold markdown (**) before checking ***
+        const cleanHeaderLine = clean(trimmedLine);
+
+        // Check for category header with count: "1. 911 CALLS (3)" or "911 CALLS (3)" or just category name
+        // More flexible matching to catch various formats
+        const categoryKeywords = ['911', 'CCTV', 'FOOTAGE', 'INTERVIEW', 'BODYCAM', 'DASHCAM', 'INVESTIGATION', 'CALLS', 'GENERAL'];
+
+        // Pattern 1: With count in parentheses - normalize category name
+        // *** USE cleanHeaderLine FOR THE MATCH ***
+        const countMatch = cleanHeaderLine.match(/^\s*(?:\d+\.?\s*)?([A-Z0-9\s/&-]+?)\s*\((\d+)\)\s*$/i);
+        if (countMatch && !trimmedLine.includes('[') && !trimmedLine.includes(':')) { // Use trimmedLine for safety checks
+          const potentialCategory = clean(countMatch[1]);
+          if (potentialCategory && categoryKeywords.some(kw => potentialCategory.toUpperCase().includes(kw))) {
+            // Normalize category name to standard format
+            let normalizedCategory = potentialCategory.toUpperCase();
+            if (/911|EMERGENCY.*CALL/i.test(normalizedCategory)) normalizedCategory = '911 CALLS';
+            else if (/CCTV|SURVEILLANCE/i.test(normalizedCategory)) normalizedCategory = 'CCTV FOOTAGE';
+            else if (/INTERVIEW/i.test(normalizedCategory)) normalizedCategory = 'INTERVIEW';
+            else if (/BODY.*CAM|BODYCAM/i.test(normalizedCategory)) normalizedCategory = 'BODYCAM FOOTAGE';
+            else if (/DASH.*CAM|DASHCAM/i.test(normalizedCategory)) normalizedCategory = 'DASHCAM FOOTAGE';
+            else if (/INVESTIGATION/i.test(normalizedCategory)) normalizedCategory = 'INVESTIGATION';
+
+            currentCategory = normalizedCategory;
+            if (!timestamps._categoryCounts) timestamps._categoryCounts = {};
+            timestamps._categoryCounts[currentCategory] = parseInt(countMatch[2], 10) || 0;
+            continue;
+          }
+        }
+
+        // Pattern 2: Category name without count (more lenient) - normalize category name
+        // *** USE cleanHeaderLine FOR THE MATCH ***
+        if (!trimmedLine.includes('[') && !trimmedLine.includes(':') && trimmedLine.length < 50) {
+          const upperCleanLine = cleanHeaderLine.toUpperCase(); // Use cleaned line for keyword check
+          // Check if line contains known category keywords
+          for (const keyword of categoryKeywords) {
+            if (upperCleanLine.includes(keyword) && upperCleanLine.length < 30) {
+              // Extract the full category name
+              const categoryMatch = cleanHeaderLine.match(/^\s*(?:\d+\.?\s*)?([A-Z0-9\s/&-]+?)\s*$/i);
+              if (categoryMatch) {
+                const potentialCategory = clean(categoryMatch[1]);
+                if (potentialCategory && potentialCategory.length > 2) {
+                  // Normalize category name
+                  let normalizedCategory = potentialCategory.toUpperCase();
+                  if (/911|EMERGENCY.*CALL/i.test(normalizedCategory)) normalizedCategory = '911 CALLS';
+                  else if (/CCTV|SURVEILLANCE/i.test(normalizedCategory)) normalizedCategory = 'CCTV FOOTAGE';
+                  else if (/INTERVIEW/i.test(normalizedCategory)) normalizedCategory = 'INTERVIEW';
+                  else if (/BODY.*CAM|BODYCAM/i.test(normalizedCategory)) normalizedCategory = 'BODYCAM FOOTAGE';
+                  else if (/DASH.*CAM|DASHCAM/i.test(normalizedCategory)) normalizedCategory = 'DASHCAM FOOTAGE';
+                  else if (/INVESTIGATION/i.test(normalizedCategory)) normalizedCategory = 'INVESTIGATION';
+
+                  currentCategory = normalizedCategory;
+                  if (!timestamps._categoryCounts) timestamps._categoryCounts = {};
+                  timestamps._categoryCounts[currentCategory] = 0;
+                  continue;
+                }
+              }
+            }
+          }
+        }
+
+        // *** IMPORTANT: The rest of the logic uses trimmedLine (the original) ***
+        // This is correct because timestamp lines are not bolded.
+
+        // Match new timestamp format: [MM:SS - MM:SS] - [Short Label] - [Full Description]
+        const tsMatch = trimmedLine.match(/\[([^\]]+)\]\s*-\s*([^-]+)\s*-\s*(.+)/);
+        if (tsMatch) {
+          const timePart = clean(tsMatch[1]);
+          const shortLabel = clean(tsMatch[2]);
+          const fullDescription = clean(tsMatch[3]);
+
+          // Smart category detection from description and label
+          let detectedCategory = null; // DISABLED: detectCategoryFromText(fullDescription, shortLabel);
+
+          // Use detected category first, then current category if not General, finally General
+          const finalCategory = currentCategory || 'General';
+
+          timestamps.push({
+            time: timePart,
+            label: shortLabel || '',
+            description: fullDescription || shortLabel || 'No description',
+            category: finalCategory
+          });
+        } else {
+          // Fallback for old format: [MM:SS - MM:SS] - Description
+          const oldTsMatch = trimmedLine.match(/\[([^\]]+)\]\s*-?\s*(.+)?/);
+          if (oldTsMatch) {
+            const timePart = clean(oldTsMatch[1]);
+            let description = (oldTsMatch[2] || '').trim();
+            if (!description || description.length === 0) {
+              description = 'Timestamp marker';
+            }
+
+            // Smart category detection from description
+            let detectedCategory = null; // DISABLED: detectCategoryFromText(description);
+
+            const finalCategory = currentCategory || 'General';
+
+            timestamps.push({
+              time: timePart,
+              label: '',
+              description: clean(description) || 'No description',
+              category: finalCategory
+            });
+          }
+        }
+        break;
+
+      case 'SUMMARY':
+        summary += line + '\n';
+        break;
+    }
+  }
+
+  // Final cleanup of the whole summary string
+  const finalSummary = summary.trim().replace(/^[\*\s]+|[\*\s]+$/g, '');
+
+  // Extract category counts if they exist
+  const categoryCounts = timestamps._categoryCounts || {};
+  // Remove the temporary _categoryCounts property
+  const cleanTimestamps = timestamps.filter(t => t && t.time);
+
+  return { metadata, timestamps: cleanTimestamps, summary: finalSummary, categoryCounts };
 }
 
 function timeToSeconds(ts) {
   // Get just the start time, e.g., "00:45 - 01:00" -> "00:45"
-  const startTime = (ts || '').split(' - ')[0].trim(); 
-  
+  const startTime = (ts || '').split(' - ')[0].trim();
+
   const parts = (startTime || '').split(':').map(x => parseInt(x, 10));
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   if (parts.length === 2) return parts[0] * 60 + parts[1];
@@ -314,7 +314,23 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
     if (metaTableWrap) metaTableWrap.classList.add('hidden');
     if (metaBody) metaBody.innerHTML = '';
   }
-  
+
+  // Calculate total timestamp count (before filtering)
+  const totalCount = timestamps.length;
+
+  // Update global variable if available (for script.js)
+  if (typeof window !== 'undefined' && window.totalTimestampCount !== undefined) {
+    window.totalTimestampCount = totalCount;
+  }
+
+  // Update the activeFilterPill if it exists
+  const activeFilterPill = document.getElementById('activeFilterPill');
+  if (activeFilterPill && typeof filterLabel === 'function') {
+    // Get current filter value from global variable
+    const currentFilter = (typeof window !== 'undefined' && window.activeTsFilter) || 'all';
+    activeFilterPill.textContent = filterLabel(currentFilter);
+  }
+
   // Group timestamps by category (normalize to uppercase for consistency)
   const grouped = timestamps.reduce((acc, ts) => {
     let cat = (ts.category || 'General').trim();
@@ -326,7 +342,7 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
     else if (/dash\s*cam|dashcam/i.test(cat)) cat = 'DASHCAM FOOTAGE';
     else if (/investigation/i.test(cat)) cat = 'INVESTIGATION';
     else cat = cat.toUpperCase();
-    
+
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(ts);
     return acc;
@@ -335,15 +351,15 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
   // Check for "No [CATEGORY] timestamps were found" messages in the text
   const categoryNotFoundMessages = [];
   const expectedCategories = ['911 CALLS', 'CCTV FOOTAGE', 'INTERVIEW', 'BODYCAM FOOTAGE', 'DASHCAM FOOTAGE', 'INVESTIGATION'];
-  
+
   for (const expectedCat of expectedCategories) {
     const normalizedCat = expectedCat.toLowerCase().replace(/\s+/g, ' ');
-    const foundInText = text.toLowerCase().includes(`no ${normalizedCat}`) || 
-                       text.toLowerCase().includes(`${normalizedCat} not found`) ||
-                       text.toLowerCase().includes(`no ${normalizedCat} timestamp`);
-    
+    const foundInText = text.toLowerCase().includes(`no ${normalizedCat}`) ||
+      text.toLowerCase().includes(`${normalizedCat} not found`) ||
+      text.toLowerCase().includes(`no ${normalizedCat} timestamp`);
+
     const catKey = Object.keys(grouped).find(k => k.toLowerCase().includes(normalizedCat.split(' ')[0]));
-    
+
     if (foundInText || (!catKey || grouped[catKey]?.length === 0)) {
       categoryNotFoundMessages.push(expectedCat);
     }
@@ -351,7 +367,7 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
 
   // Build the card grid HTML with accordion headers
   let cardsHtml = '';
-  
+
   // Sort categories: specific categories first, then GENERAL last
   const categoryOrder = ['911 CALLS', 'CCTV FOOTAGE', 'INTERVIEW', 'BODYCAM FOOTAGE', 'DASHCAM FOOTAGE', 'INVESTIGATION', 'GENERAL'];
   const sortedCategories = Object.keys(grouped).sort((a, b) => {
@@ -366,7 +382,7 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
   // Get all categories that should be displayed (with timestamps or not found)
   const allCategoriesToShow = new Set(sortedCategories);
   categoryNotFoundMessages.forEach(cat => allCategoriesToShow.add(cat));
-  
+
   // Convert to array and sort by categoryOrder
   const allCategoriesSorted = Array.from(allCategoriesToShow).sort((a, b) => {
     const aIndex = categoryOrder.findIndex(c => c === a.toUpperCase());
@@ -382,29 +398,29 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
     const items = grouped[category] || [];
     const hasItems = items && items.length > 0;
     const isNotFound = categoryNotFoundMessages.includes(category);
-    
+
     // Skip if filtering and doesn't pass filter (but still increment number for correct sequence)
     if (hasItems && !passesFilter(category)) {
       continue; // Skip this category but don't increment number
     }
-    
+
     // Skip if empty and not in notFound list
     if (!hasItems && !isNotFound) {
       continue; // Skip this category but don't increment number
     }
-    
+
     const catClass = categoryClass(category);
     const categoryUpper = escapeHTML(category.toUpperCase());
-    
+
     // Always use actual items.length as the count (source of truth)
     // This ensures the displayed count matches the actual number of timestamp cards
     const count = hasItems ? items.length : 0;
-    
+
     // Build card grid items: time pill on top, description below
     const cardItems = hasItems ? items.map(it => {
       const timeStr = escapeHTML(it.time || '');
       const descStr = escapeHTML(it.description || it.label || 'No description');
-      
+
       return `<div class="timestamp-card ${catClass}" data-category="${escapeHTML(category)}">
         <button class="link ts-jump" data-ts="${timeStr}" style="border: none; background: none; padding: 0; cursor: pointer; width: 100%; text-align: left;">
           <span class="pill-time">${timeStr}</span>
@@ -412,7 +428,7 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
         </button>
       </div>`;
     }).join('') : '';
-    
+
     cardsHtml += `<div class="timestamp-category-group collapsed" data-category="${escapeHTML(category)}">
       <button class="timestamp-category-title" data-category="${escapeHTML(category)}" type="button">
         <span class="category-arrow">▶</span>
@@ -423,16 +439,16 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
       </div>
     </div>`;
   }
-  
+
   // Render to container
   if (timestampCardsContainer) {
     const hasTimestamps = timestamps && timestamps.length > 0;
-    
+
     if (!hasTimestamps && categoryNotFoundMessages.length === 0) {
       timestampCardsContainer.innerHTML = `<div class="muted" style="padding: 20px; text-align: center;">No timestamps detected yet.</div>`;
     } else {
       timestampCardsContainer.innerHTML = cardsHtml || `<div class="muted" style="padding: 20px; text-align: center;">No timestamps detected yet.</div>`;
-      
+
       // Attach click handlers for accordion functionality (only one category open at a time)
       const categoryButtons = timestampCardsContainer.querySelectorAll('.timestamp-category-title');
       categoryButtons.forEach(btn => {
@@ -443,7 +459,7 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
             const isCollapsed = categoryGroup.classList.contains('collapsed');
             const arrow = btn.querySelector('.category-arrow');
             const cardList = categoryGroup.querySelector('.timestamp-card-list');
-            
+
             // If opening this category, close all others first
             if (isCollapsed) {
               // Close all other categories
@@ -458,7 +474,7 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
                   if (otherArrow) otherArrow.textContent = '▶';
                 }
               });
-              
+
               // Open the clicked category
               categoryGroup.classList.remove('collapsed');
               categoryGroup.classList.add('expanded');
@@ -475,7 +491,7 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
         });
       });
     }
-    
+
     // Show the timestamps section
     const timestampsSection = document.getElementById('timestamps');
     if (timestampsSection) {

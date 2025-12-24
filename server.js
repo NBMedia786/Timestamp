@@ -459,11 +459,11 @@ app.use(passport.session());
 
 // --- PASSPORT CONFIG ---
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `${process.env.APP_BASE_URL}/auth/google/callback`,
-    passReqToCallback: true
-  },
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: `${process.env.APP_BASE_URL}/auth/google/callback`,
+  passReqToCallback: true
+},
   (req, accessToken, refreshToken, profile, done) => {
     try {
       const email = profile.emails[0].value;
@@ -557,7 +557,7 @@ const checkAdmin = (req, res, next) => {
   if (req.isAuthenticated() && userEmail && adminEmailList.includes(userEmail)) {
     return next();
   }
-  
+
   // Not an admin, send them to the main app
   res.redirect('/');
 };
@@ -570,18 +570,18 @@ const checkAdminSecret = (req, res, next) => {
   // If ADMIN_SECRET is set, require it for API access
   if (adminSecret) {
     if (!providedSecret || providedSecret !== adminSecret) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Unauthorized',
-        message: 'Admin secret required' 
+        message: 'Admin secret required'
       });
     }
   }
 
   // Also check authentication (for dashboard access)
   if (!req.isAuthenticated()) {
-    return res.status(401).json({ 
+    return res.status(401).json({
       error: 'Unauthenticated',
-      message: 'Authentication required' 
+      message: 'Authentication required'
     });
   }
 
@@ -594,9 +594,9 @@ const checkAdminSecret = (req, res, next) => {
   const userEmail = req.user?.email?.toLowerCase();
 
   if (!userEmail || !adminEmailList.includes(userEmail)) {
-    return res.status(403).json({ 
+    return res.status(403).json({
       error: 'Forbidden',
-      message: 'Admin access required' 
+      message: 'Admin access required'
     });
   }
 
@@ -608,7 +608,7 @@ app.get('/auth/google',
   passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
-app.get('/auth/google/callback', 
+app.get('/auth/google/callback',
   passport.authenticate('google', {
     failureRedirect: '/login?error=' + encodeURIComponent('Authentication failed. Only @nbmediaproductions.com users are allowed.'),
     failureMessage: true
@@ -642,20 +642,20 @@ app.post('/api/share', checkAuth, async (req, res) => {
   try {
     console.log('Share request received. Body keys:', Object.keys(req.body || {}));
     const { analysisText, videoUrl, fileName } = req.body || {};
-    
+
     if (!analysisText || !analysisText.trim()) {
       console.error('Share request missing analysisText');
       return res.status(400).json({ message: 'Missing analysis text' });
     }
-    
+
     const shareId = generateShareId();
     console.log('Generated shareId:', shareId);
-    
+
     if (!shareId || shareId.length < 5) {
       console.error('Invalid share ID generated:', shareId);
       return res.status(500).json({ message: 'Failed to generate share ID', shareId: null });
     }
-    
+
     // Insert into database instead of JSON file
     db.prepare(`
       INSERT INTO shared_links (share_id, analysis_text, video_url, file_name, created_at)
@@ -667,10 +667,10 @@ app.post('/api/share', checkAuth, async (req, res) => {
       fileName || null,
       new Date().toISOString()
     );
-    
+
     const totalShares = db.prepare('SELECT COUNT(*) as count FROM shared_links').get().count;
     console.log('Saved shared analysis. ShareId:', shareId, 'Total shares:', totalShares);
-    
+
     // Construct shareable URL - detect host from request
     let host = req.get('host') || req.headers.host;
     if (!host) {
@@ -680,23 +680,23 @@ app.post('/api/share', checkAuth, async (req, res) => {
         try {
           const url = new URL(origin);
           host = url.host;
-        } catch {}
+        } catch { }
       }
     }
     // Final fallback
     if (!host) {
       host = `localhost:${PORT}`;
     }
-    
+
     const protocol = (req.secure || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
     const shareUrl = `${protocol}://${host}/share/${shareId}`;
-    
+
     // Always return shareId and constructed URL
-    const response = { 
+    const response = {
       shareId: shareId,
       url: shareUrl
     };
-    
+
     console.log('Sending response:', JSON.stringify(response, null, 2));
     res.json(response);
   } catch (e) {
@@ -711,9 +711,11 @@ app.use(express.static(__dirname, { index: false }));
 // Shared files directory for linkable local video uploads
 const SHARED_DIR = path.join(__dirname, 'shared');
 await fsp.mkdir(SHARED_DIR, { recursive: true });
-app.use('/shared', express.static(SHARED_DIR, { fallthrough: true, setHeaders: (res) => {
-  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-} }));
+app.use('/shared', express.static(SHARED_DIR, {
+  fallthrough: true, setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+}));
 
 // -------- Simple in-memory queue for /upload (beta: 5-10 users) --------
 const CONCURRENCY_LIMIT = 5; // 4-core VPS: allow ~5 concurrent analyses safely
@@ -726,7 +728,7 @@ function notifyQueuePositions() {
     const currentPosition = index + activeJobs + 1; // +1 because positions are 1-based
     try {
       job.res.write(`[Notice] Queue position updated: ${currentPosition}\n`);
-    } catch {}
+    } catch { }
   });
 }
 
@@ -735,12 +737,12 @@ function processQueue() {
     const job = jobQueue.shift();
     activeJobs += 1;
     // Notify client job is starting
-    try { job.res.write(`\n[Notice] Starting analysis...\n`); } catch {}
+    try { job.res.write(`\n[Notice] Starting analysis...\n`); } catch { }
     Promise.resolve()
       .then(() => job.run())
-      .catch((e) => { try { job.res.write(`\n[Error] ${e?.message || String(e)}\n`); } catch {} })
-      .finally(() => { 
-        activeJobs -= 1; 
+      .catch((e) => { try { job.res.write(`\n[Error] ${e?.message || String(e)}\n`); } catch { } })
+      .finally(() => {
+        activeJobs -= 1;
         processQueue();
         // Notify remaining queued jobs about position changes
         notifyQueuePositions();
@@ -898,11 +900,13 @@ function extractTitle(analysisText, promptText, fileName, url) {
 }
 
 // Keep-alive agent for outgoing HTTPS with improved timeout settings
-const keepAliveAgent = new https.Agent({ 
-  keepAlive: true, 
+// Use STREAM_TIMEOUT_MS from .env to prevent premature request aborts
+const STREAM_TIMEOUT_MS = parseInt(process.env.STREAM_TIMEOUT_MS || '1800000'); // Default 30 minutes
+const keepAliveAgent = new https.Agent({
+  keepAlive: true,
   maxSockets: 50,
   keepAliveMsecs: 1000,
-  timeout: 60000, // 60 second timeout
+  timeout: STREAM_TIMEOUT_MS, // Match stream timeout to prevent aborts
   freeSocketTimeout: 4000
 });
 
@@ -943,8 +947,34 @@ const isYouTubeUrl = (url) => {
     return false;
   }
 };
-const deleteIfExists = async (p) => { if (p) { try { await fsp.unlink(p); } catch {} } };
+const deleteIfExists = async (p) => { if (p) { try { await fsp.unlink(p); } catch { } } };
 function getMimeType(filePath) { return mimeLookup(path.extname(filePath)) || 'application/octet-stream'; }
+
+// Retry utility for handling aborted Gemini API requests
+async function retryOnAbort(fn, maxRetries = 3, context = 'API request') {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const errorMsg = error?.message || String(error);
+      const isAborted = errorMsg.toLowerCase().includes('abort');
+      const isTimeout = errorMsg.toLowerCase().includes('timeout');
+
+      // Retry on abort or timeout errors
+      if ((isAborted || isTimeout) && attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff: 1s, 2s, 4s max
+        console.log(`⚠️  ${context} failed (attempt ${attempt}/${maxRetries}): ${errorMsg}`);
+        console.log(`🔄 Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+
+      // Don't retry on non-abort errors or if max retries reached
+      throw error;
+    }
+  }
+}
+
 
 // ffmpeg detection
 async function hasFfmpeg() {
@@ -961,7 +991,7 @@ async function hasFfmpeg() {
         proc.on('close', code => (code === 0 ? resolve() : reject()));
       });
       return { ok: true, path: cmd };
-    } catch {}
+    } catch { }
   }
   return { ok: false };
 }
@@ -986,13 +1016,13 @@ function downloadToFile(url, destPath) {
         return downloadToFile(resp.headers.location, destPath).then(resolve).catch(reject);
       }
       if (resp.statusCode !== 200) {
-        file.close(() => fs.unlink(destPath, () => {}));
+        file.close(() => fs.unlink(destPath, () => { }));
         return reject(new Error(`Failed to download yt-dlp (HTTP ${resp.statusCode})`));
       }
       resp.pipe(file);
       file.on('finish', () => file.close(resolve));
     }).on('error', (err) => {
-      file.close(() => fs.unlink(destPath, () => {}));
+      file.close(() => fs.unlink(destPath, () => { }));
       reject(err);
     });
   });
@@ -1004,7 +1034,7 @@ async function which(cmd) {
   for (const d of dirs) {
     for (const e of exts) {
       const p = path.join(d, cmd + e);
-      try { await fsp.access(p, fs.constants.X_OK); return p; } catch {}
+      try { await fsp.access(p, fs.constants.X_OK); return p; } catch { }
     }
   }
   return null;
@@ -1061,7 +1091,7 @@ async function downloadYouTube(url) {
 
   const outBase = path.join(os.tmpdir(), `yt-${Date.now()}`);
   const outTpl = `${outBase}.%(ext)s`;
-  const args = [ url, ...ytFormatArgs(ff.ok), '-o', outTpl, '-4' ];
+  const args = [url, ...ytFormatArgs(ff.ok), '-o', outTpl, '-4'];
 
   // --- START COOKIE SUPPORT ---
   const COOKIES_PATH = "/root/cookies.txt";
@@ -1129,7 +1159,7 @@ function isTransientError(err) {
   );
 }
 
-async function uploadFileWithRetry(fileManager, localPath, options, { attempts = 3, initialDelayMs = 3000, onRetry = () => {} } = {}) {
+async function uploadFileWithRetry(fileManager, localPath, options, { attempts = 3, initialDelayMs = 3000, onRetry = () => { } } = {}) {
   let lastErr;
   for (let i = 1; i <= attempts; i++) {
     try {
@@ -1138,13 +1168,13 @@ async function uploadFileWithRetry(fileManager, localPath, options, { attempts =
     } catch (err) {
       lastErr = err;
       const msg = (err?.message || '').toLowerCase();
-      const isNetworkError = msg.includes('fetch failed') || 
-                            msg.includes('econnreset') || 
-                            msg.includes('etimedout') || 
-                            msg.includes('econnrefused') ||
-                            msg.includes('network') ||
-                            msg.includes('connection');
-      
+      const isNetworkError = msg.includes('fetch failed') ||
+        msg.includes('econnreset') ||
+        msg.includes('etimedout') ||
+        msg.includes('econnrefused') ||
+        msg.includes('network') ||
+        msg.includes('connection');
+
       if (i < attempts && (isTransientError(err) || isNetworkError)) {
         const delay = initialDelayMs * Math.pow(2, i - 1);
         await onRetry(i + 1, delay, err);
@@ -1157,7 +1187,7 @@ async function uploadFileWithRetry(fileManager, localPath, options, { attempts =
   throw lastErr;
 }
 
-async function streamWithRetry(model, request, { attempts = 3, initialDelayMs = 2000, onRetry = () => {} } = {}) {
+async function streamWithRetry(model, request, { attempts = 3, initialDelayMs = 2000, onRetry = () => { } } = {}) {
   let lastErr;
   for (let i = 1; i <= attempts; i++) {
     try {
@@ -1183,7 +1213,7 @@ app.post('/upload', checkAuth, (req, res) => {
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('X-Accel-Buffering', 'no');
-  
+
   upload(req, res, async (err) => {
     if (err) {
       return res.status(400).send(err.message || 'File upload error');
@@ -1257,7 +1287,7 @@ app.post('/upload', checkAuth, (req, res) => {
         res.write('[Notice] Uploading video to Gemini File API…\n');
         uploaded = await uploadFileWithRetry(fileManager, localPath, { mimeType, displayName: path.basename(localPath) }, {
           onRetry: async (nextAttempt, delayMs, e) => {
-            res.write(`\n[Notice] Upload error (${e.message.includes('fetch failed') ? 'network issue' : e.message}). Retrying attempt ${nextAttempt} in ${Math.round(delayMs/1000)}s…\n`);
+            res.write(`\n[Notice] Upload error (${e.message.includes('fetch failed') ? 'network issue' : e.message}). Retrying attempt ${nextAttempt} in ${Math.round(delayMs / 1000)}s…\n`);
           }
         });
 
@@ -1281,7 +1311,7 @@ app.post('/upload', checkAuth, (req, res) => {
           contents: [{ parts: [{ text: finalPrompt }, { fileData: { mimeType, fileUri } }] }]
         }, {
           onRetry: async (nextAttempt, delayMs, e) => {
-            res.write(`\n[Notice] Transient error (${e?.status || e?.code || 'unknown'}). Retrying attempt ${nextAttempt} in ${Math.round(delayMs/1000)}s…\n`);
+            res.write(`\n[Notice] Transient error (${e?.status || e?.code || 'unknown'}). Retrying attempt ${nextAttempt} in ${Math.round(delayMs / 1000)}s…\n`);
           }
         });
 
@@ -1299,14 +1329,14 @@ app.post('/upload', checkAuth, (req, res) => {
           try {
             // Ensure shared directory exists
             await fsp.mkdir(SHARED_DIR, { recursive: true });
-            
+
             const newName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${path.extname(localPath) || '.bin'}`;
             const newPath = path.join(SHARED_DIR, newName);
-            
+
             // Use copyFile + unlink instead of rename to support cross-device moves
             await fsp.copyFile(localPath, newPath);
             await fsp.unlink(localPath);
-            
+
             savedUrl = `/shared/${encodeURIComponent(newName)}`;
             res.write(`\n[Notice] File saved to: ${savedUrl}\n`);
             cleanupPath = null;
@@ -1350,11 +1380,11 @@ app.post('/upload', checkAuth, (req, res) => {
         else res.write(msg);
       } finally {
         await deleteIfExists(cleanupPath);
-        try { if (uploaded?.file?.name) await fileManager.deleteFile(uploaded.file.name); } catch {}
+        try { if (uploaded?.file?.name) await fileManager.deleteFile(uploaded.file.name); } catch { }
         if (!res.writableEnded) res.end();
       }
     }, res);
-    try { res.write(`[Notice] Queued. Position: ${position}\n`); } catch {}
+    try { res.write(`[Notice] Queued. Position: ${position}\n`); } catch { }
   });
 });
 
@@ -1376,7 +1406,7 @@ app.post('/share/upload', checkAuth, (req, res) => {
         try {
           const url = new URL(origin);
           host = url.host;
-        } catch {}
+        } catch { }
       }
     }
     if (!host) {
@@ -1400,11 +1430,11 @@ app.get('/api/share/:id', checkAuth, async (req, res) => {
       FROM shared_links 
       WHERE share_id = ?
     `).get(id);
-    
+
     if (!analysis) {
       return res.status(404).json({ message: 'Shared analysis not found' });
     }
-    
+
     res.json(analysis);
   } catch (e) {
     res.status(500).json({ message: e?.message || 'Failed to load shared analysis' });
@@ -1422,7 +1452,7 @@ app.get('/share/:id', async (req, res) => {
       FROM shared_links 
       WHERE share_id = ?
     `).get(id);
-    
+
     if (!analysis) {
       return res.status(404).send(`
         <!DOCTYPE html>
@@ -1436,7 +1466,7 @@ app.get('/share/:id', async (req, res) => {
         </html>
       `);
     }
-    
+
     // Serve the view.html page
     const viewPath = path.join(__dirname, 'view.html');
     res.sendFile(viewPath);
@@ -1505,8 +1535,8 @@ app.put('/api/history/:id', checkAuth, (req, res) => {
     `).run(name.trim(), id, req.user.google_id);
     if (info.changes === 0) return res.status(404).json({ message: 'Not found or no permission' });
     res.json({ ok: true });
-  } catch (e) { 
-    res.status(500).json({ message: e.message }); 
+  } catch (e) {
+    res.status(500).json({ message: e.message });
   }
 });
 
@@ -1541,7 +1571,7 @@ app.delete('/api/history/:id', checkAuth, async (req, res) => {
         info = db.prepare('DELETE FROM analysis_jobs WHERE job_id = ? AND user_google_id = ?').run(id, user.google_id);
       }
     }
-    
+
     if (!item || !info || info.changes === 0) {
       return res.status(404).json({ message: 'Not found or no permission' });
     }
@@ -1558,9 +1588,9 @@ app.delete('/api/history/:id', checkAuth, async (req, res) => {
     }
 
     res.json({ ok: true, message: 'Job deleted successfully' });
-  } catch (e) { 
+  } catch (e) {
     console.error('Delete error:', e);
-    res.status(500).json({ message: e.message || 'Failed to delete analysis' }); 
+    res.status(500).json({ message: e.message || 'Failed to delete analysis' });
   }
 });
 
@@ -1604,9 +1634,9 @@ app.get('/api/admin/health', (req, res) => {
 
     res.json(health);
   } catch (e) {
-    res.status(500).json({ 
+    res.status(500).json({
       status: 'error',
-      message: e.message 
+      message: e.message
     });
   }
 });
@@ -1652,7 +1682,7 @@ app.get('/api/admin/stats', checkAuth, checkAdmin, (req, res) => {
     stats.jobs.failed = db.prepare("SELECT COUNT(*) as count FROM analysis_jobs WHERE status = 'failed'").get().count;
     stats.jobs.processing = db.prepare("SELECT COUNT(*) as count FROM analysis_jobs WHERE status = 'processing'").get().count;
     stats.jobs.avg_time_ms = db.prepare("SELECT AVG(time_taken_ms) as avg FROM analysis_jobs WHERE status = 'completed'").get().avg;
-    
+
     // Get paginated jobs (without analysis_text for performance)
     stats.jobs.recent = db.prepare(`
       SELECT job_id, user_google_id, analyzed_by_name, job_name, video_url, file_name, 
@@ -1661,7 +1691,7 @@ app.get('/api/admin/stats', checkAuth, checkAdmin, (req, res) => {
       ORDER BY created_at DESC 
       LIMIT ? OFFSET ?
     `).all(limit, offset);
-    
+
     // Get total count for pagination
     const totalJobs = db.prepare("SELECT COUNT(*) as count FROM analysis_jobs").get().count;
     stats.jobs.total = totalJobs;
@@ -1670,7 +1700,7 @@ app.get('/api/admin/stats', checkAuth, checkAdmin, (req, res) => {
     stats.jobs.totalPages = Math.ceil(totalJobs / limit);
 
     // --- NEW STATS ---
-    
+
     // 4. Get Total Analysis Time
     const totalTimeResult = db.prepare("SELECT SUM(time_taken_ms) as total FROM analysis_jobs WHERE status = 'completed'").get();
     stats.jobs.total_time_ms = totalTimeResult.total || 0;
@@ -1687,7 +1717,7 @@ app.get('/api/admin/stats', checkAuth, checkAdmin, (req, res) => {
       LIMIT 1
     `).get();
     stats.users.most_active = mostActiveResult ? `${mostActiveResult.display_name} (${mostActiveResult.job_count} jobs)` : 'N/A';
-    
+
     // --- END NEW STATS ---
 
     res.json(stats);
@@ -1727,11 +1757,11 @@ app.get('/api/admin/users', checkAuth, checkAdmin, (req, res) => {
 app.post('/api/admin/logout-user/:google_id', checkAuth, checkAdmin, (req, res) => {
   try {
     const { google_id } = req.params;
-    
+
     // Find all active sessions for this google_id by parsing the session data
     const sessions = db.prepare('SELECT sid, data FROM sessions').all();
     let sessionsDeleted = 0;
-    
+
     for (const session of sessions) {
       try {
         const sessionData = JSON.parse(session.data);

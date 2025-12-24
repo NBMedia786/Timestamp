@@ -87,6 +87,11 @@ const tsFilterDropdown = document.getElementById('tsFilterDropdown');
 const activeFilterPill = document.getElementById('activeFilterPill');
 
 let activeTsFilter = 'all';
+let totalTimestampCount = 0; // Store total count for "All" filter display
+
+// Make these variables accessible globally for parser.js
+window.activeTsFilter = activeTsFilter;
+window.totalTimestampCount = totalTimestampCount;
 
 
 
@@ -218,8 +223,8 @@ function updateStep(message, isComplete = false, isError = false) {
 
   if (!progressConsole) return;
 
-  
-  
+
+
   // Don't remove final completion step - keep it visible
 
   if (currentStepElement && !isComplete) {
@@ -238,16 +243,16 @@ function updateStep(message, isComplete = false, isError = false) {
 
   }
 
-  
-  
+
+
   // Create new step element
 
   currentStepElement = document.createElement('div');
 
   currentStepElement.className = 'console-step';
 
-  
-  
+
+
   if (isError) {
 
     currentStepElement.classList.add('step-error');
@@ -272,14 +277,14 @@ function updateStep(message, isComplete = false, isError = false) {
 
   }
 
-  
-  
+
+
   progressConsole.appendChild(currentStepElement);
 
   progressConsole.scrollTop = progressConsole.scrollHeight;
 
-  
-  
+
+
   // Clean up old steps (keep only last 3, but always keep the final complete step)
 
   while (progressConsole.children.length > 3) {
@@ -336,8 +341,8 @@ function updateStreamingContent(fullText) {
 
   if (!progressConsole) return;
 
-  
-  
+
+
   // Find or create streaming content container
 
   let streamingContent = progressConsole.querySelector('.streaming-content');
@@ -352,8 +357,8 @@ function updateStreamingContent(fullText) {
 
   }
 
-  
-  
+
+
   if (!fullText || fullText.trim().length === 0) {
 
     streamingContent.innerHTML = '<div class="streaming-preview muted">Waiting for analysis to begin...</div>';
@@ -362,22 +367,22 @@ function updateStreamingContent(fullText) {
 
   }
 
-  
-  
+
+
   // Extract key information from the text
 
   const text = fullText.trim();
 
   const lines = text.split(/\r?\n/);
 
-  
-  
+
+
   // Count words
 
   const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
 
-  
-  
+
+
   // Check for key sections
 
   const hasMetadata = /METADATA/i.test(text);
@@ -386,17 +391,17 @@ function updateStreamingContent(fullText) {
 
   const hasSummary = /SUMMARY/i.test(text) || /STORYLINE/i.test(text);
 
-  
-  
+
+
   // Get recent content snippet (last 150 characters of actual content, not headers)
 
-  const contentLines = lines.filter(l => 
+  const contentLines = lines.filter(l =>
 
-    l.trim() && 
+    l.trim() &&
 
-    !l.startsWith('METADATA') && 
+    !l.startsWith('METADATA') &&
 
-    !l.startsWith('TIMESTAMPS') && 
+    !l.startsWith('TIMESTAMPS') &&
 
     !l.startsWith('SUMMARY') &&
 
@@ -406,13 +411,13 @@ function updateStreamingContent(fullText) {
 
   const recentContent = contentLines.slice(-3).join(' ').trim();
 
-  const preview = recentContent.length > 120 
+  const preview = recentContent.length > 120
 
-    ? recentContent.substring(recentContent.length - 120) + '...' 
+    ? recentContent.substring(recentContent.length - 120) + '...'
 
     : recentContent;
-  
-  
+
+
 
   // Extract detected topics/categories
 
@@ -426,14 +431,14 @@ function updateStreamingContent(fullText) {
 
   if (/body\s*cam|bodycam/i.test(text)) categories.push('Body Cam');
 
-  
-  
+
+
   // Build preview HTML
 
   let previewHTML = '<div class="streaming-preview">';
 
-  
-  
+
+
   // Status indicators
 
   previewHTML += '<div class="streaming-status">';
@@ -446,8 +451,8 @@ function updateStreamingContent(fullText) {
 
   previewHTML += '</div>';
 
-  
-  
+
+
   // Word count
 
   if (wordCount > 0) {
@@ -456,8 +461,8 @@ function updateStreamingContent(fullText) {
 
   }
 
-  
-  
+
+
   // Categories detected
 
   if (categories.length > 0) {
@@ -466,8 +471,8 @@ function updateStreamingContent(fullText) {
 
   }
 
-  
-  
+
+
   // Content preview
 
   if (preview) {
@@ -476,8 +481,8 @@ function updateStreamingContent(fullText) {
 
   }
 
-  
-  
+
+
   previewHTML += '</div>';
 
   streamingContent.innerHTML = previewHTML;
@@ -492,14 +497,14 @@ function updateStreamingContent(fullText) {
 function updateLiveStats(fullText) {
   // Remove HTML tags if present and get clean text
   const cleanText = fullText.replace(/<[^>]*>/g, '').trim();
-  
+
   // Count words - match sequences of letters (including apostrophes in words like "don't")
   // This excludes numbers, timestamps, and other non-word tokens
   const words = cleanText.match(/[a-zA-Z]+(?:'[a-zA-Z]+)*/g) || [];
-  
+
   // Count timestamps - match patterns like [MM:SS or [00:00
   const timestamps = cleanText.match(/\[\d{1,2}:\d{2}/g) || [];
-  
+
   // Count categories - match category headers like "1. CATEGORY NAME (5)"
   const categories = cleanText.match(/^\d+\.\s*[A-Z\s&]+\s*\(\d+\)/gm) || [];
 
@@ -518,14 +523,14 @@ function showModalError(errorMessage) {
   if (modalContent) {
     modalContent.classList.add('error-state');
   }
-  
+
   progressStatus.textContent = 'Analysis Failed';
-  
+
   const errorMsg = errorMessage.replace('[Error]', '').trim();
   if (streamPreview) {
     streamPreview.innerHTML = `<span style="color: var(--err);">${escapeHTML(errorMsg)}</span>`;
   }
-  
+
   if (etaTimer) clearInterval(etaTimer);
 
   if (toggleProgressDetailsBtn) {
@@ -745,7 +750,7 @@ function activateCheckpoint(checkpointName) {
 
   if (currentCheckpoint === checkpointName) return;
 
-  
+
 
   // Mark previous checkpoint as completed
 
@@ -763,7 +768,7 @@ function activateCheckpoint(checkpointName) {
 
   }
 
-  
+
 
   // Activate new checkpoint
 
@@ -777,11 +782,11 @@ function activateCheckpoint(checkpointName) {
 
   }
 
-  
+
 
   currentCheckpoint = checkpointName;
 
-  
+
 
   // Update progress bar position
 
@@ -809,7 +814,7 @@ function setDeleteProgress(percent, status, subStatus) {
 
   }
 
-  
+
 
   if (percent <= 0 && !deleteModal.classList.contains('hidden')) {
 
@@ -827,11 +832,11 @@ function setDeleteProgress(percent, status, subStatus) {
 
   }
 
-  
+
 
   const cleanPercent = Math.max(0, Math.min(100, percent));
 
-  
+
 
   if (deleteProgressBar) {
 
@@ -839,7 +844,7 @@ function setDeleteProgress(percent, status, subStatus) {
 
   }
 
-  
+
 
   if (deleteProgressPercent) {
 
@@ -847,7 +852,7 @@ function setDeleteProgress(percent, status, subStatus) {
 
   }
 
-  
+
 
   if (deleteStatus && status) {
 
@@ -855,7 +860,7 @@ function setDeleteProgress(percent, status, subStatus) {
 
   }
 
-  
+
 
   if (deleteSubStatus && subStatus) {
 
@@ -968,7 +973,7 @@ function parseServerLine(line) {
 
     const l = originalLine.toLowerCase();
 
-    
+
 
     // (ETA logic)
 
@@ -986,7 +991,7 @@ function parseServerLine(line) {
 
           if (etaTimer) clearInterval(etaTimer);
 
-          
+
 
           const updateTimer = () => {
 
@@ -998,7 +1003,7 @@ function parseServerLine(line) {
 
             if (remaining <= 0) {
 
-              if(etaEl) etaEl.textContent = 'Finishing up...';
+              if (etaEl) etaEl.textContent = 'Finishing up...';
 
               clearInterval(etaTimer);
 
@@ -1010,7 +1015,7 @@ function parseServerLine(line) {
 
               const seconds = remaining % 60;
 
-              if(etaEl) etaEl.textContent = `Estimated time remaining: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+              if (etaEl) etaEl.textContent = `Estimated time remaining: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
             }
 
@@ -1018,7 +1023,7 @@ function parseServerLine(line) {
 
           updateTimer(); // Run once immediately
 
-          if(etaEl) etaEl.style.display = 'block';
+          if (etaEl) etaEl.style.display = 'block';
 
           etaTimer = setInterval(updateTimer, 1000);
 
@@ -1030,7 +1035,7 @@ function parseServerLine(line) {
 
     }
 
-    
+
 
     if (l.includes('queued') || l.includes('queue position')) {
 
@@ -1054,7 +1059,7 @@ function parseServerLine(line) {
 
     }
 
-    
+
 
     // (Checkpoint logic)
 
@@ -1132,11 +1137,11 @@ function parseServerLine(line) {
 
 
 if (browseBtn && videoInput) {
-browseBtn.addEventListener('click', (e) => {
-  e.stopPropagation(); // Prevent event from bubbling to dropzone
+  browseBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent event from bubbling to dropzone
     e.preventDefault();
     try {
-  videoInput.click();
+      videoInput.click();
     } catch (err) {
       console.error('Error opening file dialog:', err);
       showToast('Error opening file dialog. Please try again.');
@@ -1150,15 +1155,15 @@ if (videoInput) {
   // Ensure file input accepts video files
   videoInput.setAttribute('accept', 'video/*');
   videoInput.setAttribute('type', 'file');
-  
+
   videoInput.addEventListener('change', (e) => {
     console.log('File input changed:', e.target.files);
-    
+
     const files = e.target.files || (e.target && e.target.files);
-    
+
     if (files && files.length > 0) {
       const file = files[0];
-      
+
       // Validate file type
       if (!file.type.startsWith('video/')) {
         console.warn('Invalid file type:', file.type);
@@ -1168,7 +1173,7 @@ if (videoInput) {
         currentVideoFileName = null;
         return;
       }
-      
+
       // Validate file size (2GB limit)
       const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB in bytes
       if (file.size > MAX_FILE_SIZE) {
@@ -1184,7 +1189,7 @@ if (videoInput) {
         }
         return;
       }
-      
+
       console.log('File selected:', file.name, file.size, file.type);
 
       // Store file reference for upload and history
@@ -1194,10 +1199,10 @@ if (videoInput) {
       if (fileInfo) {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
         fileInfo.textContent = `Selected file: ${file.name} (${sizeMB} MB)`;
-    fileInfo.classList.remove('hidden');
+        fileInfo.classList.remove('hidden');
       }
 
-    uploadTriggered = false;
+      uploadTriggered = false;
 
       if (ytWrap) ytWrap.classList.add('hidden');
       if (ytFrame) ytFrame.removeAttribute('src');
@@ -1207,11 +1212,11 @@ if (videoInput) {
         if (player && player.src && player.src.startsWith('blob:')) {
           URL.revokeObjectURL(player.src);
         }
-        
-    const url = URL.createObjectURL(file);
+
+        const url = URL.createObjectURL(file);
         if (player) {
-    player.src = url;
-    player.classList.remove('hidden');
+          player.src = url;
+          player.classList.remove('hidden');
           console.log('Video player updated with file:', file.name);
           showToast(`Video loaded: ${file.name}`);
         }
@@ -1339,20 +1344,20 @@ setProgressDetailsVisibility(false);
 
 // Allow clicking the dropzone to open file dialog
 if (dropZone && videoInput) {
-dropZone.addEventListener('click', (e) => {
-  // Don't trigger if clicking the browse button (it has its own handler)
-  if (e.target === browseBtn || e.target.closest('#browseBtn')) {
-    return;
-  }
-    
-  // Only trigger if clicking the dropzone area itself
+  dropZone.addEventListener('click', (e) => {
+    // Don't trigger if clicking the browse button (it has its own handler)
+    if (e.target === browseBtn || e.target.closest('#browseBtn')) {
+      return;
+    }
+
+    // Only trigger if clicking the dropzone area itself
     try {
-  videoInput.click();
+      videoInput.click();
     } catch (err) {
       console.error('Error opening file dialog from dropzone:', err);
       showToast('Error opening file dialog. Please try again.');
     }
-});
+  });
 }
 
 
@@ -1475,7 +1480,7 @@ function toYouTubeEmbed(url) {
 
     }
 
-  } catch {}
+  } catch { }
 
   return '';
 
@@ -1501,16 +1506,16 @@ async function handleSubmit(e) {
 
   // Reset saved video path for each new analysis
   savedVideoPath = null;
-  
+
   // Reset ETA timer
   if (etaTimer) clearInterval(etaTimer);
   const etaEl = document.getElementById('progressETA');
   if (etaEl) etaEl.style.display = 'none';
-  
+
   console.log('Submit button clicked - handleSubmit called');
 
-  
-  
+
+
   const url = (urlInput.value || '').trim();
 
   const file = (videoInput.files && videoInput.files[0]) || currentVideoFile;
@@ -1533,16 +1538,16 @@ async function handleSubmit(e) {
   setUpload(10, 'Preparing…');
 
   shareBtn.disabled = true;
-  
-  
+
+
   // Retry configuration
 
   const MAX_RETRIES = 3;
 
   let retryCount = 0;
 
-  
-  
+
+
   try {
 
     // Main retry loop for network errors
@@ -1561,19 +1566,19 @@ async function handleSubmit(e) {
 
         const errorMessage = error.message || String(error);
 
-        const isNetworkError = errorMessage.includes('Network error') || 
+        const isNetworkError = errorMessage.includes('Network error') ||
 
-                              errorMessage.includes('Failed to fetch') ||
+          errorMessage.includes('Failed to fetch') ||
 
-                              errorMessage.includes('Connection timeout') ||
+          errorMessage.includes('Connection timeout') ||
 
-                              errorMessage.includes('Connection failed') ||
+          errorMessage.includes('Connection failed') ||
 
-                              errorMessage.includes('AbortError') ||
+          errorMessage.includes('AbortError') ||
 
-                              error.name === 'AbortError';
-        
-        
+          error.name === 'AbortError';
+
+
 
         // Only retry network errors, not server/validation errors
 
@@ -1583,24 +1588,24 @@ async function handleSubmit(e) {
 
           const remainingRetries = MAX_RETRIES - retryCount;
 
-          
-          
+
+
           console.log(`Network error occurred. Retrying... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
 
           updateStep(`Network error. Retrying in ${Math.min(3 * retryCount, 10)} seconds... (${remainingRetries} attempts remaining)`, false);
 
           addConsoleLog(`[Notice] Network error detected. Auto-retrying... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
 
-          
-          
+
+
           // Wait before retry (exponential backoff: 3s, 6s, 9s)
 
           const delay = Math.min(3000 * retryCount, 10000);
 
           await new Promise(resolve => setTimeout(resolve, delay));
 
-          
-          
+
+
           // Reset progress for retry
 
           setUpload(10, 'Retrying…');
@@ -1619,12 +1624,12 @@ async function handleSubmit(e) {
 
     }
 
-    
-    
+
+
     // Note: Modal auto-closes after 3 seconds in the xhr.onload success handler
     // No need for additional timeout here (removed unreliable check)
-    
-    
+
+
 
   } catch (finalError) {
     // NEW: Check for user-initiated abort
@@ -1642,13 +1647,13 @@ async function handleSubmit(e) {
 
     const finalErrorMsg = finalError.message || 'Unknown error occurred';
 
-    
-    
+
+
     // Show final error message
 
-    if (finalErrorMsg.includes('Network error') || finalErrorMsg.includes('Failed to fetch') || 
+    if (finalErrorMsg.includes('Network error') || finalErrorMsg.includes('Failed to fetch') ||
 
-        finalErrorMsg.includes('Connection timeout') || finalErrorMsg.includes('Connection failed')) {
+      finalErrorMsg.includes('Connection timeout') || finalErrorMsg.includes('Connection failed')) {
 
       addConsoleLog(`[Error] Network error after ${MAX_RETRIES} attempts. Please check your connection.`);
 
@@ -1769,7 +1774,7 @@ async function performAnalysis(url, file) {
       currentAnalysisXHR = null;
       reject(new Error('Network error during upload.'));
     };
-    
+
     xhr.upload.ontimeout = () => {
       currentAnalysisXHR = null;
       reject(new Error('Upload timed out.'));
@@ -1822,7 +1827,7 @@ async function performAnalysis(url, file) {
           }, 400);
         }
       }
-      
+
       // Re-build the structured output in real-time
       buildStructuredOutputWrapper(resultsPre.textContent);
     };
@@ -1837,7 +1842,7 @@ async function performAnalysis(url, file) {
         softTimer = null;
       }
       if (etaTimer) clearInterval(etaTimer);
-      
+
       const etaEl = document.getElementById('progressETA');
       if (etaEl) etaEl.textContent = 'Finishing up...';
 
@@ -1891,7 +1896,7 @@ async function performAnalysis(url, file) {
             document.querySelector('[data-tab-main="results"]')?.classList.add('active');
             mainTabContents.forEach(c => c.classList.remove('active'));
             document.getElementById('tab-results-main')?.classList.add('active');
-            
+
             tabs.forEach(t => t.classList.remove('active'));
             tabContents.forEach(c => c.classList.remove('active'));
             document.querySelector('.tab[data-tab="structured"]')?.classList.add('active');
@@ -1900,7 +1905,7 @@ async function performAnalysis(url, file) {
             console.error('Post-processing error after analysis:', postProcessError);
             addConsoleLog(`[Error] Post-processing error: ${postProcessError.message || postProcessError}`);
             showToast('Analysis finished, but UI failed to update. Please refresh.', 'error');
-          
+
           } finally {
             setUpload(100, 'Complete ✓');
             updateStep('Everything is ready!', true);
@@ -1972,7 +1977,7 @@ async function performAnalysis(url, file) {
     activityTimer = setInterval(() => {
       const timeSinceActivity = Date.now() - lastActivityTime;
       const minutesSinceActivity = Math.round(timeSinceActivity / 60000);
-      
+
       if (timeSinceActivity > ACTIVITY_TIMEOUT) {
         clearInterval(activityTimer);
         if (softTimer) {
@@ -2113,7 +2118,7 @@ timestampCardsContainer?.addEventListener('click', (e) => {
 
     if (!player.classList.contains('hidden')) {
 
-      try { player.currentTime = secs; player.play(); } catch {}
+      try { player.currentTime = secs; player.play(); } catch { }
 
     } else if (!ytWrap.classList.contains('hidden')) {
 
@@ -2201,34 +2206,35 @@ tsFilterDropdown?.addEventListener('click', (e) => {
 
   if (!btn) return;
 
-  
-  
+
+
   e.preventDefault();
 
   e.stopPropagation();
 
-  
-  
+
+
   const val = btn.getAttribute('data-filter') || 'all';
 
   activeTsFilter = val;
+  window.activeTsFilter = val; // Sync with window property for parser.js access
 
-  
-  
+
+
   if (activeFilterPill) {
 
     activeFilterPill.textContent = filterLabel(val);
 
   }
 
-  
-  
+
+
   updateFilterHighlight();
 
   tsFilterDropdown.classList.add('hidden');
 
-  
-  
+
+
   // Rebuild structured output with new filter
 
   if (resultsPre && resultsPre.textContent) {
@@ -2262,7 +2268,7 @@ function filterLabel(val) {
 
     case 'body_cam': return 'Body Cam';
     case 'dash_cam': return 'Dashcam';
-    default: return 'All';
+    default: return totalTimestampCount > 0 ? `All (${totalTimestampCount})` : 'All';
 
   }
 
@@ -2276,12 +2282,12 @@ function passesFilter(category) {
 
   if (!category) return false;
 
-  
-  
+
+
   const c = (category || '').toLowerCase().trim();
 
-  
-  
+
+
   // More robust matching for each filter type
 
   if (activeTsFilter === '911_call') {
@@ -2320,8 +2326,8 @@ function passesFilter(category) {
 
   }
 
-  
-  
+
+
   return false;
 
 }
@@ -2368,12 +2374,12 @@ async function shareAnalysis(analysisText, videoUrl, fileName) {
 
   }
 
-  
-  
+
+
   let finalVideoUrl = videoUrl || null;
 
-  
-  
+
+
   // If we have a local file, upload it first to get a shareable URL
 
   if (!finalVideoUrl && videoInput.files && videoInput.files[0]) {
@@ -2420,8 +2426,8 @@ async function shareAnalysis(analysisText, videoUrl, fileName) {
 
   }
 
-  
-  
+
+
   // Create share link on server
 
   try {
@@ -2444,8 +2450,8 @@ async function shareAnalysis(analysisText, videoUrl, fileName) {
 
     });
 
-    
-    
+
+
     if (!resp.ok) {
 
       const error = await resp.json().catch(() => ({}));
@@ -2454,14 +2460,14 @@ async function shareAnalysis(analysisText, videoUrl, fileName) {
 
     }
 
-    
-    
+
+
     const result = await resp.json();
 
     console.log('Full server response:', JSON.stringify(result, null, 2));
 
-    
-    
+
+
     // Always use shareId to construct URL if available (more reliable)
 
     let url;
@@ -2472,8 +2478,8 @@ async function shareAnalysis(analysisText, videoUrl, fileName) {
 
       console.log('Constructed URL from shareId:', url);
 
-      
-      
+
+
       // If server also returned a URL, validate it matches
 
       if (result.url && result.url !== url) {
@@ -2498,8 +2504,8 @@ async function shareAnalysis(analysisText, videoUrl, fileName) {
 
     }
 
-    
-    
+
+
     // Final validation
 
     if (!url || url === window.location.origin + '/' || url === window.location.origin) {
@@ -2510,8 +2516,8 @@ async function shareAnalysis(analysisText, videoUrl, fileName) {
 
     }
 
-    
-    
+
+
     if (!url.includes('/share/')) {
 
       console.error('URL missing /share/ path:', url);
@@ -2520,12 +2526,12 @@ async function shareAnalysis(analysisText, videoUrl, fileName) {
 
     }
 
-    
-    
+
+
     console.log('Final share URL:', url);
 
-    
-    
+
+
     // Copy to clipboard
 
     try {
@@ -2598,19 +2604,19 @@ async function renderHistory(searchQuery = '') {
 
   }
 
-  
-  
+
+
   // Filter history based on search query
 
   const query = (searchQuery || '').toLowerCase().trim();
 
-  const filteredHistory = query 
+  const filteredHistory = query
 
     ? history.filter(item => item.name.toLowerCase().includes(query))
 
     : history;
-  
-  
+
+
 
   if (filteredHistory.length === 0 && query) {
 
@@ -2622,8 +2628,8 @@ async function renderHistory(searchQuery = '') {
 
   }
 
-  
-  
+
+
   for (const item of filteredHistory) {
 
     const li = document.createElement('li');
@@ -2632,8 +2638,8 @@ async function renderHistory(searchQuery = '') {
 
     li.dataset.id = item.id;
 
-    
-    
+
+
     // Format date and time
 
     let dateTimeText = '';
@@ -2654,8 +2660,8 @@ async function renderHistory(searchQuery = '') {
 
       const diffDays = Math.floor(diffMs / 86400000);
 
-      
-      
+
+
       // Format as relative time (e.g., "17h ago")
 
       if (diffMins < 1) {
@@ -2684,8 +2690,8 @@ async function renderHistory(searchQuery = '') {
 
     }
 
-    
-    
+
+
     // Get video name from fileName or extract from videoUrl
     let videoName = item.fileName || '';
     if (!videoName && item.videoUrl) {
@@ -2783,14 +2789,14 @@ function _extractTitle_REMOVED(analysisText, promptText, fileName, url) {
 
     const defaultPromptKeywords = ['analyze this video', 'extract the following', 'metadata extraction', 'timestamp analysis'];
 
-    const isDefaultPrompt = defaultPromptKeywords.some(keyword => 
+    const isDefaultPrompt = defaultPromptKeywords.some(keyword =>
 
       promptText.toLowerCase().includes(keyword)
 
     );
 
-    
-    
+
+
     if (!isDefaultPrompt) {
 
       // Use first line or first 60 chars of prompt as title
@@ -2813,8 +2819,8 @@ function _extractTitle_REMOVED(analysisText, promptText, fileName, url) {
 
   }
 
-  
-  
+
+
   // Try to extract from summary section
 
   if (analysisText) {
@@ -2835,8 +2841,8 @@ function _extractTitle_REMOVED(analysisText, promptText, fileName, url) {
 
     }
 
-    
-    
+
+
     // Try to extract from metadata (e.g., case name, location)
 
     const metadataMatch = analysisText.match(/(?:METADATA|Date|Address|Location|Police Department)[\s\*:]*\n+[^\n]+:([^\n]+)/i);
@@ -2853,17 +2859,17 @@ function _extractTitle_REMOVED(analysisText, promptText, fileName, url) {
 
     }
 
-    
-    
+
+
     // Try first meaningful line from analysis
 
     const lines = analysisText.split(/\n/).filter(l => {
 
       const trimmed = l.trim();
 
-      return trimmed.length > 10 && 
+      return trimmed.length > 10 &&
 
-             !trimmed.match(/^(METADATA|TIMESTAMPS|SUMMARY|STORYLINE|\[|\d+\.)/i);
+        !trimmed.match(/^(METADATA|TIMESTAMPS|SUMMARY|STORYLINE|\[|\d+\.)/i);
 
     });
 
@@ -2881,8 +2887,8 @@ function _extractTitle_REMOVED(analysisText, promptText, fileName, url) {
 
   }
 
-  
-  
+
+
   // Fallback to filename (without extension) or YouTube video title
 
   if (fileName) {
@@ -2897,8 +2903,8 @@ function _extractTitle_REMOVED(analysisText, promptText, fileName, url) {
 
   }
 
-  
-  
+
+
   if (url && url.includes('youtube.com')) {
 
     const videoIdMatch = url.match(/[?&]v=([^&]+)/);
@@ -2911,8 +2917,8 @@ function _extractTitle_REMOVED(analysisText, promptText, fileName, url) {
 
   }
 
-  
-  
+
+
   // Last resort: generic title with date
 
   return `Video Analysis ${new Date().toLocaleDateString()}`;
@@ -2926,8 +2932,8 @@ async function _addHistoryItem_REMOVED(analysisText) {
 
   if (!analysisText) return;
 
-  
-  
+
+
   // Use saved file reference or try to get from input
 
   const file = currentVideoFile || (videoInput.files && videoInput.files[0]);
@@ -2938,8 +2944,8 @@ async function _addHistoryItem_REMOVED(analysisText) {
 
   const promptText = '';
 
-  
-  
+
+
   // If we have a local file, upload it to shared directory to get a permanent URL
 
   if (savedVideoPath) {
@@ -3022,8 +3028,8 @@ async function _addHistoryItem_REMOVED(analysisText) {
 
   }
 
-  
-  
+
+
   // Extract meaningful title from analysis text, prompt, or file name
   // NOTE: This function is deprecated - history is now saved automatically by server
   // const name = extractTitle(analysisText, promptText, fileName, url);
@@ -3031,7 +3037,7 @@ async function _addHistoryItem_REMOVED(analysisText) {
 
   const resp = await fetch('/api/history', {
 
-    method: 'POST', 
+    method: 'POST',
 
     headers: { 'Content-Type': 'application/json' },
 
@@ -3039,8 +3045,8 @@ async function _addHistoryItem_REMOVED(analysisText) {
 
   });
 
-  
-  
+
+
   if (resp.status === 413) {
 
     showToast('Storage full (20 GB). Please clear history.');
@@ -3051,8 +3057,8 @@ async function _addHistoryItem_REMOVED(analysisText) {
 
   }
 
-  
-  
+
+
   if (!resp.ok) {
 
     const j = await resp.json().catch(() => ({}));
@@ -3063,8 +3069,8 @@ async function _addHistoryItem_REMOVED(analysisText) {
 
   }
 
-  
-  
+
+
   const searchQuery = historySearch ? historySearch.value.trim() : '';
 
   await renderHistory(searchQuery);
@@ -3097,7 +3103,7 @@ function estimateItemSizeBytes(item) {
 
   let total = 0;
 
-  try { total += new Blob([item.analysisText || '']).size; } catch {}
+  try { total += new Blob([item.analysisText || '']).size; } catch { }
 
   if (item.videoData instanceof Blob) {
 
@@ -3105,7 +3111,7 @@ function estimateItemSizeBytes(item) {
 
   } else if (typeof item.videoData === 'string') {
 
-    try { total += new Blob([item.videoData]).size; } catch {}
+    try { total += new Blob([item.videoData]).size; } catch { }
 
   }
 
@@ -3234,12 +3240,12 @@ historyList?.addEventListener('click', async (e) => {
 
     if (!itemEl) return;
 
-    
-    
+
+
     const id = itemEl.dataset.id;
 
-    
-    
+
+
     // Close the dropdown
 
     const dropdown = document.querySelector(`.history-menu-dropdown[data-item-id="${id}"]`);
@@ -3347,13 +3353,13 @@ historyList?.addEventListener('click', async (e) => {
 
       if (newName && newName.trim()) {
 
-        await fetch(`/api/history/${id}`, { 
+        await fetch(`/api/history/${id}`, {
 
-          method: 'PUT', 
+          method: 'PUT',
 
-          headers: { 'Content-Type':'application/json' }, 
+          headers: { 'Content-Type': 'application/json' },
 
-          body: JSON.stringify({ name: newName.trim() }) 
+          body: JSON.stringify({ name: newName.trim() })
 
         });
 
@@ -3373,16 +3379,16 @@ historyList?.addEventListener('click', async (e) => {
 
   }
 
-  
-  
+
+
   // Handle clicking on history item itself (to load it)
 
   const itemEl = e.target.closest('.history-item');
 
   if (!itemEl || e.target.closest('.history-menu')) return;
 
-  
-  
+
+
   const id = itemEl.dataset.id;
 
   const hist = await loadHistory();
@@ -3401,8 +3407,8 @@ historyList?.addEventListener('click', async (e) => {
 
   });
 
-  
-  
+
+
   // Add active class to clicked item
 
   itemEl.classList.add('active');
@@ -3415,9 +3421,9 @@ historyList?.addEventListener('click', async (e) => {
 
   resultsPre.textContent = item.analysisText;
 
-    buildStructuredOutputWrapper(item.analysisText);
-  
-  
+  buildStructuredOutputWrapper(item.analysisText);
+
+
   // Check if it's a YouTube URL first
 
   if (typeof item.videoUrl === 'string' && item.videoUrl) {
@@ -3566,8 +3572,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   await checkAdminStatus();
   // --- END NEW CODE ---
 
-  
-  
+
+
   // Grid icon button - can be used for menu toggle in future
 
   const gridIconBtn = document.querySelector('.history-grid-icon');
@@ -3582,8 +3588,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   }
 
-  
-  
+
+
   // History search functionality
 
   if (historySearch) {
@@ -3596,8 +3602,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     });
 
-    
-    
+
+
     // Clear search on Escape key
 
     historySearch.addEventListener('keydown', (e) => {
@@ -3614,12 +3620,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   }
 
-  
-  
+
+
   // History panel button functionality
 
   if (historyBtn && historyPanel) {
-    
+
     // Toggle panel visibility on button click
     historyBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -3648,7 +3654,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     historyPanel.addEventListener('click', (e) => {
       e.stopPropagation();
     });
-    
+
   }
 
   logoutBtn?.addEventListener('click', async (event) => {
