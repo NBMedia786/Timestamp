@@ -303,15 +303,16 @@ function calculateDuration(timeStr) {
 
 // Format seconds to "MM:SS" or "HH:MM:SS"
 function formatDuration(totalSeconds) {
-  if (!isFinite(totalSeconds) || totalSeconds <= 0) return '0:00';
+  if (!isFinite(totalSeconds) || totalSeconds <= 0) return '0:00 min.';
   const hours = Math.floor(totalSeconds / 3600);
   const mins = Math.floor((totalSeconds % 3600) / 60);
   const secs = Math.floor(totalSeconds % 60);
   if (hours > 0) {
-    return `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    return `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} min.`;
   }
-  return `${mins}:${String(secs).padStart(2, '0')}`;
+  return `${mins}:${String(secs).padStart(2, '0')} min.`;
 }
+
 
 function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTableWrap, metaBody, passesFilter = () => true, filterLabel = () => '') {
   if (!text || !text.trim()) {
