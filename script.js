@@ -2098,7 +2098,7 @@ function buildStructuredOutputWrapper(text) {
     metaTableWrap,
     metaBody,
     passesFilter,
-    filterLabel
+    filterLabel  // Pass filterLabel function so pill can be updated
   );
 }
 
@@ -2268,7 +2268,10 @@ function filterLabel(val) {
 
     case 'body_cam': return 'Body Cam';
     case 'dash_cam': return 'Dashcam';
-    default: return totalTimestampCount > 0 ? `All (${totalTimestampCount})` : 'All';
+    default:
+      // Use window.totalTimestampCount to get the value set by parser.js
+      const count = (typeof window !== 'undefined' && window.totalTimestampCount) || 0;
+      return count > 0 ? `All (${count})` : 'All';
 
   }
 

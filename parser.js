@@ -321,6 +321,7 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
   // Update global variable if available (for script.js)
   if (typeof window !== 'undefined' && window.totalTimestampCount !== undefined) {
     window.totalTimestampCount = totalCount;
+    console.log(`📊 Total timestamp count set to: ${totalCount}`);
   }
 
   // Update the activeFilterPill if it exists
@@ -328,7 +329,9 @@ function buildStructuredOutput(text, timestampCardsContainer, summaryEl, metaTab
   if (activeFilterPill && typeof filterLabel === 'function') {
     // Get current filter value from global variable
     const currentFilter = (typeof window !== 'undefined' && window.activeTsFilter) || 'all';
-    activeFilterPill.textContent = filterLabel(currentFilter);
+    const labelText = filterLabel(currentFilter);
+    activeFilterPill.textContent = labelText;
+    console.log(`🏷️ Updated filter pill to: "${labelText}" (filter: ${currentFilter}, count: ${totalCount})`);
   }
 
   // Group timestamps by category (normalize to uppercase for consistency)
